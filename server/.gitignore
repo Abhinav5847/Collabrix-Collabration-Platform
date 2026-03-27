@@ -1,11 +1,20 @@
-
+# Python
 *.pyc
 __pycache__/
 
-myenv/
+# Backend
+server/myenv/
+server/db.sqlite3
 
+# Frontend
+client/node_modules/
 
-db.sqlite3
+# Env
+.env
+server/.env
+
+# Logs
 *.log
 
+# Editor
 .vscode/
