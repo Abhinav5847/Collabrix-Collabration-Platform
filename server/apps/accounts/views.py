@@ -25,18 +25,18 @@ class RegisterView(APIView):
                         raise Exception("Failed to send OTP email")
                 except Exception as e:
                     return Response(
-                        {"error": f"OTP not sent: {str(e)}"}, status=500
+                        {"error": f"OTP not sent: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
 
                 return Response(
                     {"message": "Registration completed. Check your email for OTP."},
-                    status=201
+                    status=status.HTTP_201_CREATED
                 )
 
-            return Response(serializer.errors, status=400)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class VerifyOTPView(APIView):
     def post(self, request):
@@ -46,31 +46,53 @@ class VerifyOTPView(APIView):
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return Response({"error": "Invalid email"}, status=400)
+            return Response({"error": "Invalid email"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             otp_obj = user.otps.latest('created_at')
 
             if otp_obj.is_expired():
-                return Response({"error": "OTP expired"}, status=400)
+                return Response({"error": "OTP expired"}, status=status.HTTP_400_BAD_REQUEST)
 
             if otp_obj.attempts >= 5:
-                return Response({"error": "Too many failed attempts"}, status=400)
+                return Response({"error": "Too many failed attempts"}, status=status.HTTP_400_BAD_REQUEST)
 
             if otp_obj.code != otp:
-                otp_obj.increment_attempts()  # <--- increment attempts here
-                return Response({"error": "Invalid OTP"}, status=400)
+                otp_obj.increment_attempts()  
+                return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
-           
             user.is_verified = True
             user.save()
-            otp_obj.delete()  # delete OTP after successful verification
-            return Response({"message": "Email verified successfully"}, status=200)
+            otp_obj.delete()  
+            return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
 
         except UserOTP.DoesNotExist:
-            return Response({"error": "OTP not found"}, status=400)
+            return Response({"error": "OTP not found"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": str(e)}, status=500)      
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ResendOtpView(APIView):
+    def post(self,request):
+        email = request.data.get("email")
+        if not email:
+                return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)            
+        try:
+            user = User.objects.get(email=email)
+            UserOTP.objects.filter(user=user).delete()
+
+            otp = UserOTP.objects.create(user=user)
+
+            if not send_otp_email(user.email,otp.code):
+                raise Exception("Failed to send OTP email")
+                
+            return Response({"message": "OTP resent successfully"}, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class LoginView(APIView):
     def post(self,request):
@@ -84,7 +106,7 @@ class LoginView(APIView):
 
                 if user is not None:
                     if not user.is_verified:
-                      return Response({"error": "Email not verified"}, status=403)
+                      return Response({"error": "Email not verified"}, status=status.HTTP_403_FORBIDDEN)
                     
                     if user.is_active:
                      refresh = RefreshToken.for_user(user)
