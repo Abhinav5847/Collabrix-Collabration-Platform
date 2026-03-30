@@ -7,6 +7,7 @@ import UserLogin from './pages/UserLogin';
 import UserRegister from './pages/UserRegister';
 import VerifyOTP from './pages/verifyOtp';
 import './App.css'
+import GoogleCallback from './pages/GoogleCallback';
 
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
         <Route path="/register" element={<UserRegister/>} />
         <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/login" element={<UserLogin/>} />
+         <Route path="/google/callback" element={<GoogleCallback/>} />
       </Routes>
     </Router>
     </>

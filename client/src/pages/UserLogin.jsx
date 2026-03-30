@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../services/api";
 import { useNavigate } from "react-router-dom";
+import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -23,17 +24,15 @@ const UserLogin = () => {
       toast.success(res.data.message, {
         position: "top-right",
         autoClose: 3000,
-      });  
+      });
+
       setTimeout(() => {
-        navigate("/dashboard"); 
+        navigate("/dashboard");
       }, 1000);
     } catch (err) {
       let message = "Something went wrong";
-
       if (err.response?.data) {
-        message = Object.values(err.response.data)
-          .flat()
-          .join(", ");
+        message = Object.values(err.response.data).flat().join(", ");
       }
 
       toast.error(message, {
@@ -43,19 +42,27 @@ const UserLogin = () => {
     }
   };
 
+  const handleGoogleLogin = () => {
+    const clientId =
+      "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
+    const redirectUri = "http://localhost:5173/google/callback";
+    const scope = "email profile";
+
+    const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+
+    window.location.href = googleUrl;
+  };
+
   return (
     <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
       <div className="card shadow p-4" style={{ width: "400px" }}>
-        <h3 className="card-title text-center mb-4">User Login</h3>
+        <h3 className="text-center mb-4">User Login</h3>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
-            <label htmlFor="email" className="form-label">
-              Email
-            </label>
+            <label className="form-label">Email</label>
             <input
               type="email"
-              id="email"
               name="email"
               className="form-control"
               placeholder="Enter your email"
@@ -66,12 +73,9 @@ const UserLogin = () => {
           </div>
 
           <div className="mb-3">
-            <label htmlFor="password" className="form-label">
-              Password
-            </label>
+            <label className="form-label">Password</label>
             <input
               type="password"
-              id="password"
               name="password"
               className="form-control"
               placeholder="Enter your password"
@@ -91,6 +95,36 @@ const UserLogin = () => {
             Don't have an account? <a href="/register">Register here</a>
           </small>
         </div>
+
+        <div className="d-flex align-items-center my-3">
+          <hr className="flex-grow-1" />
+          <span className="px-2 text-muted">OR</span>
+          <hr className="flex-grow-1" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-100 d-flex align-items-center justify-content-center"
+          style={{
+            padding: "10px",
+            backgroundColor: "#fff",
+            border: "1px solid #dadce0",
+            borderRadius: "6px",
+            fontWeight: "500",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.backgroundColor = "#f7f7f7")
+          }
+          onMouseOut={(e) =>
+            (e.currentTarget.style.backgroundColor = "#fff")
+          }
+        >
+          <FcGoogle size={22} style={{ marginRight: "10px" }} />
+          Continue with Google
+        </button>
       </div>
       <ToastContainer />
     </div>

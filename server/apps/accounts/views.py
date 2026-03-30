@@ -7,6 +7,9 @@ from .serializers import RegisterSerializer,LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User,UserOTP
 from .utils.send_otp_email import send_otp_email
+User = get_user_model()
+import os 
+import requests
 
 
 # Create your views here.
@@ -125,3 +128,64 @@ class LoginView(APIView):
             return Response({"error":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
                            
 
+
+class GoogleAuthView(APIView):
+    def post(self,request):
+        try:
+            code = request.data.get("code")
+            if not code:
+                return Response({"error": "Code is required"}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                token_url = "https://oauth2.googleapis.com/token"
+                data = {
+                    "code": code,
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "redirect_uri": "http://localhost:5173/google/callback",
+                    "grant_type": "authorization_code"
+                }
+                token_res = requests.post(token_url,data=data)
+                token_res.raise_for_status()
+                token_data = token_res.json()
+                access_token = token_data.get("access_token")
+            except requests.exceptions.RequestException as e:
+                return Response({"error": f"Failed to get token from Google: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+                user_res = requests.get(user_info_url, headers={"Authorization": f"Bearer {access_token}"})
+                user_res.raise_for_status()
+                user_data = user_res.json()
+                email = user_data.get("email")
+                name = user_data.get("name")
+                picture = user_data.get("picture")
+            except requests.exceptions.RequestException as e:
+                return Response({"error": f"Failed to get user info from Google: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                user, created = User.objects.get_or_create(
+                    email=email,
+                    defaults={
+                        "username": email,
+                        "first_name": name,
+                        "is_verified": True  # Google users are automatically verified
+                    }
+                )
+            except Exception as e:
+                return Response({"error": f"Failed to create/get user: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            try:
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "user": {
+                        "email": email,
+                        "name": name,
+                        "picture": picture
+                    }
+                }, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({"error": f"Failed to generate JWT: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    
