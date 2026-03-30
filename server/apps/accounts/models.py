@@ -1,9 +1,11 @@
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 import random
 from datetime import timedelta
+
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -43,3 +45,8 @@ class UserOTP(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+class UserMFA(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
+    secret = models.CharField(max_length=32)
+    is_enabled = models.BooleanField(default=False)        

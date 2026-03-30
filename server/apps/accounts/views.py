@@ -1,15 +1,19 @@
 from django.shortcuts import render
+from django.http import HttpResponse
 from django.contrib.auth import authenticate,get_user_model
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from .serializers import RegisterSerializer,LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User,UserOTP
+from rest_framework.permissions import IsAuthenticated,AllowAny
+from .models import User,UserOTP,UserMFA
 from .utils.send_otp_email import send_otp_email
 User = get_user_model()
 import os 
 import requests
+import pyotp,qrcode
+from io import BytesIO
 
 
 # Create your views here.
@@ -128,7 +132,6 @@ class LoginView(APIView):
             return Response({"error":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
                            
 
-
 class GoogleAuthView(APIView):
     def post(self,request):
         try:
@@ -166,7 +169,7 @@ class GoogleAuthView(APIView):
                     defaults={
                         "username": email,
                         "first_name": name,
-                        "is_verified": True  # Google users are automatically verified
+                        "is_verified": True  
                     }
                 )
             except Exception as e:
@@ -188,4 +191,44 @@ class GoogleAuthView(APIView):
         except Exception as e:
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    
+class EnableMfaView(APIView):
+    permission_classes = [IsAuthenticated] 
+
+    def get(self,request):
+        secret = pyotp.random_base32()
+
+        mfa,_ = UserMFA.objects.get_or_create(user=request.user)
+        mfa.secret = secret
+        mfa.is_enabled = False
+        mfa.save()  
+
+        uri = pyotp.TOTP(secret).provisioning_uri(
+            name=request.user.email,
+            issuer_name="Collabrix"
+        )
+
+        qr = qrcode.make(uri)
+        buffer = BytesIO()
+        qr.save(buffer)
+
+        return HttpResponse(buffer.getvalue(), content_type="image/png")
+
+class VerifyMFAView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        code = request.data.get("code")
+
+        try:
+            mfa = UserMFA.objects.get(user=request.user)
+            totp = pyotp.TOTP(mfa.secret)
+
+            if totp.verify(code):
+                mfa.is_enabled = True
+                mfa.save()
+                return Response({"message": "MFA enabled"})
+
+            return Response({"error": "Invalid code"}, status=400)
+
+        except UserMFA.DoesNotExist:
+            return Response({"error": "MFA not setup"}, status=400)        
