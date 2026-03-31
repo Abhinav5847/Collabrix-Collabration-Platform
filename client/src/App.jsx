@@ -8,6 +8,8 @@ import UserRegister from './pages/UserRegister';
 import VerifyOTP from './pages/verifyOtp';
 import './App.css'
 import GoogleCallback from './pages/GoogleCallback';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 
 function App() {
@@ -21,6 +23,8 @@ function App() {
         <Route path="/register" element={<UserRegister/>} />
         <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/login" element={<UserLogin/>} />
+        <Route path="/forgot_password" element={<ForgotPassword/>} />
+        <Route path="/reset_password/:uid/:token" element={<ResetPassword/>} />
          <Route path="/google/callback" element={<GoogleCallback/>} />
       </Routes>
     </Router>

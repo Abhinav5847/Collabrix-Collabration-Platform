@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const UserLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) =>
@@ -14,6 +15,7 @@ const UserLogin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       const res = await api.post("/accounts/login/", form);
@@ -26,9 +28,7 @@ const UserLogin = () => {
         autoClose: 3000,
       });
 
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1000);
+      setTimeout(() => navigate("/dashboard"), 1000);
     } catch (err) {
       let message = "Something went wrong";
       if (err.response?.data) {
@@ -39,6 +39,8 @@ const UserLogin = () => {
         position: "top-right",
         autoClose: 5000,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,7 +74,7 @@ const UserLogin = () => {
             />
           </div>
 
-          <div className="mb-3">
+          <div className="mb-2">
             <label className="form-label">Password</label>
             <input
               type="password"
@@ -85,14 +87,41 @@ const UserLogin = () => {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-100">
-            Login
+          <div className="d-flex justify-content-end mb-3">
+            <button
+              type="button"
+              onClick={() => navigate("/forgot_password")}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#0d6efd",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary w-100"
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
         <div className="mt-3 text-center">
           <small>
-            Don't have an account? <a href="/register">Register here</a>
+            Don't have an account?{" "}
+            <span
+              onClick={() => navigate("/register")}
+              style={{ color: "#0d6efd", cursor: "pointer" }}
+            >
+              Register here
+            </span>
           </small>
         </div>
 
