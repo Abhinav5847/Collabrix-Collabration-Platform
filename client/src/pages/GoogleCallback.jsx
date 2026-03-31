@@ -22,7 +22,9 @@ const GoogleCallback = () => {
             autoClose: 3000,
           });
 
-          setTimeout(() => navigate("/dashboard"), 1000);
+          // setTimeout(() =>
+             navigate("/dashboard")
+          // , 1000);
         })
         .catch((err) => {
           console.error(err);

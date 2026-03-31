@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import RegisterView,LoginView,VerifyOTPView,ResendOtpView,GoogleAuthView,EnableMfaView,VerifyMFAView
+from .views import ForgotPassView,ResetPassView
 
 
 urlpatterns = [
@@ -10,4 +11,6 @@ urlpatterns = [
     path("google_login/",GoogleAuthView.as_view(), name="google-login"),
     path("enable_mfa/",EnableMfaView.as_view(),name='enable_mfa'),
     path("verify_mfa/",VerifyMFAView.as_view(),name='enable_mfa'),
+    path("forgot_pass/",ForgotPassView.as_view(),name='forgot_pass'),
+    path("reset_pass/<uidb64>/<token>/",ResetPassView.as_view(),name='Reset_pass'),
 ]
