@@ -9,16 +9,10 @@ from datetime import timedelta
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
-    # otp = models.CharField(max_length=4, blank=True, null=True) 
     is_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
-
-    # def generate_otp(self):
-    #     self.otp = f"{random.randint(1000, 9999)}"
-    #     self.save()
-    #     return self.otp
 
     def __str__(self):
         return self.email

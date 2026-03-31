@@ -27,6 +27,9 @@ from io import BytesIO
 
 # auth
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
@@ -53,6 +56,9 @@ class RegisterView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self, request):
         email = request.data.get("email")
         otp = request.data.get("otp")
@@ -86,6 +92,9 @@ class VerifyOTPView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ResendOtpView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self,request):
         email = request.data.get("email")
         if not email:
@@ -109,6 +118,9 @@ class ResendOtpView(APIView):
 
 
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self,request):
         try:
             serializer = LoginSerializer(data=request.data)
@@ -140,6 +152,9 @@ class LoginView(APIView):
                            
 
 class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self,request):
         try:
             code = request.data.get("code")
@@ -241,6 +256,9 @@ class VerifyMFAView(APIView):
             return Response({"error": "MFA not setup"}, status=400) 
 
 class ForgotPassView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self,request):
         email = request.data.get('email')
 
@@ -264,6 +282,9 @@ class ForgotPassView(APIView):
         )
         
 class ResetPassView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self,request,uidb64,token):
         password = request.data.get('password')
 

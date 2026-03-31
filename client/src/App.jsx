@@ -10,6 +10,9 @@ import './App.css'
 import GoogleCallback from './pages/GoogleCallback';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import Dashboard from './pages/Dashboard';
+import EnableMFA from './pages/EnableMFA';
+import VerifyMFA from './pages/VerifyMFA';
 
 
 function App() {
@@ -23,9 +26,12 @@ function App() {
         <Route path="/register" element={<UserRegister/>} />
         <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/login" element={<UserLogin/>} />
+        <Route path="/dashboard" element={<Dashboard/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
         <Route path="/reset_password/:uid/:token" element={<ResetPassword/>} />
-         <Route path="/google/callback" element={<GoogleCallback/>} />
+        <Route path="/google/callback" element={<GoogleCallback/>} />
+        <Route path="/enable_Mfa" element={<EnableMFA/>} />
+        <Route path="/verify_Mfa" element={<VerifyMFA/>} />
       </Routes>
     </Router>
     </>
