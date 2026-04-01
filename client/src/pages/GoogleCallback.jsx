@@ -23,7 +23,7 @@ const GoogleCallback = () => {
           });
 
           // setTimeout(() =>
-             navigate("/dashboard")
+             navigate("/")
           // , 1000);
         })
         .catch((err) => {

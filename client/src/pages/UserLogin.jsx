@@ -28,7 +28,7 @@ const UserLogin = () => {
         autoClose: 3000,
       });
 
-      setTimeout(() => navigate("/dashboard"), 1000);
+      setTimeout(() => navigate("/"), 1000);
     } catch (err) {
       let message = "Something went wrong";
       if (err.response?.data) {

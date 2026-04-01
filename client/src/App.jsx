@@ -26,7 +26,7 @@ function App() {
         <Route path="/register" element={<UserRegister/>} />
         <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/login" element={<UserLogin/>} />
-        <Route path="/dashboard" element={<Dashboard/>} />
+        <Route path="/" element={<Dashboard/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
         <Route path="/reset_password/:uid/:token" element={<ResetPassword/>} />
         <Route path="/google/callback" element={<GoogleCallback/>} />

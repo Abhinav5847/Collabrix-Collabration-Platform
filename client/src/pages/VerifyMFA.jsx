@@ -37,7 +37,7 @@ const VerifyMFA = () => {
       toast.success(res.data.message || "Verification successful");
 
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate("/");
       }, 1000);
     } catch (err) {
       console.error("Error verifying MFA:", err);

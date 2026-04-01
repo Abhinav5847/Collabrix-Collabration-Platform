@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from .models import User
 
 class RegisterSerializer(serializers.ModelSerializer):
-
+    email = serializers.EmailField(required=True) 
     password = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True)
 

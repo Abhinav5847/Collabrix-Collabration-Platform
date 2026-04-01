@@ -271,6 +271,8 @@ class ForgotPassView(APIView):
 
             reset_link = f"{settings.FRONTEND_URL}/reset_password/{uid}/{token}/"
 
+            # print(reset_link)
+
             send_forgotpass_email(user.email, reset_link)
                    
         except User.DoesNotExist:
