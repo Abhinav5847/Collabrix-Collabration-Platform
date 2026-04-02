@@ -5,14 +5,16 @@ from django.utils.http import urlsafe_base64_encode,urlsafe_base64_decode
 from django.contrib.auth.password_validation import validate_password, ValidationError
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
 from django.contrib.auth import authenticate,get_user_model
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
-from .serializers import RegisterSerializer,LoginSerializer
+from .serializers import RegisterSerializer,LoginSerializer,ForgotPassSerializer,GoogleAuthSerializer,ResendOtpSerializer,ResetPassSerializer
+from .serializers import VerifyMFASerializer,VerifyOTPSerializer
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated,AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import User,UserOTP,UserMFA
 from .utils.send_otp_email import send_otp_email
 from .utils.send_forgotpass_email import send_forgotpass_email
@@ -26,79 +28,103 @@ from io import BytesIO
 # Create your views here.
 
 # auth
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = RegisterSerializer
 
     def post(self, request):
         try:
-            serializer = RegisterSerializer(data=request.data)
-            if serializer.is_valid():
-                user = serializer.save()
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-                try:
-                    otp = UserOTP.objects.create(user=user)
-                    if not send_otp_email(user.email, otp.code):
-                        raise Exception("Failed to send OTP email")
-                except Exception as e:
-                    return Response(
-                        {"error": f"OTP not sent: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
+            user = serializer.save()
 
+            try:
+                otp = UserOTP.objects.create(user=user)
+
+                if not send_otp_email(user.email, otp.code):
+                    raise Exception("Failed to send OTP email")
+
+            except Exception as e:
                 return Response(
-                    {"message": "Registration completed. Check your email for OTP."},
-                    status=status.HTTP_201_CREATED
+                    {"error": f"OTP not sent: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "Registration completed. Check your email for OTP."},
+                status=status.HTTP_201_CREATED
+            )
+
+        except DRFValidationError as e:
+            return Response(
+                {"error": e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Something went wrong"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = VerifyOTPSerializer
 
     def post(self, request):
-        email = request.data.get("email")
-        otp = request.data.get("otp")
-
         try:
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            email = serializer.validated_data["email"]
+            otp = serializer.validated_data["otp"]
+
             user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"error": "Invalid email"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
             otp_obj = user.otps.latest('created_at')
 
             if otp_obj.is_expired():
-                return Response({"error": "OTP expired"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "OTP expired"}, status=400)
 
             if otp_obj.attempts >= 5:
-                return Response({"error": "Too many failed attempts"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Too many failed attempts"}, status=400)
 
             if otp_obj.code != otp:
-                otp_obj.increment_attempts()  
-                return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+                otp_obj.increment_attempts()
+                return Response({"error": "Invalid OTP"}, status=400)
 
             user.is_verified = True
             user.save()
-            otp_obj.delete()  
-            return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
+            otp_obj.delete()
+
+            return Response({"message": "Email verified successfully"}, status=200)
+
+        except DRFValidationError as e:  
+            return Response({"error": e.detail}, status=400)
+
+        except User.DoesNotExist:
+            return Response({"error": "Invalid email"}, status=400)
 
         except UserOTP.DoesNotExist:
-            return Response({"error": "OTP not found"}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": "OTP not found"}, status=400)
+
+        except Exception:
+            return Response({"error": "Something went wrong"}, status=500)        
 
 class ResendOtpView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = ResendOtpSerializer
 
     def post(self,request):
-        email = request.data.get("email")
-        if not email:
-                return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)            
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data.get("email")
+
         try:
             user = User.objects.get(email=email)
             UserOTP.objects.filter(user=user).delete()
@@ -115,52 +141,73 @@ class ResendOtpView(APIView):
             
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+           
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = LoginSerializer
 
-    def post(self,request):
+    def post(self, request):
         try:
-            serializer = LoginSerializer(data=request.data)
-            if serializer.is_valid():
-                email = serializer.validated_data.get('email')       
-                password = serializer.validated_data.get('password')
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)   
 
-                user = authenticate(request,email=email,password=password)
+            email = serializer.validated_data["email"]      
+            password = serializer.validated_data["password"]
 
-                if user is not None:
-                    if not user.is_verified:
-                      return Response({"error": "Email not verified"}, status=status.HTTP_403_FORBIDDEN)
-                    
-                    if user.is_active:
-                     refresh = RefreshToken.for_user(user)
-                     return Response({
-                            "message": "Login successful",
-                            "access": str(refresh.access_token),
-                            "refresh": str(refresh)
-                        }, status=status.HTTP_200_OK)
-                    else:
-                     return Response({"error":"User account is inactive"},status=status.HTTP_403_FORBIDDEN)
-                
-                return Response({"error":"Invalid email or password"},status=status.HTTP_401_UNAUTHORIZED)
+            user = authenticate(request, email=email, password=password)
 
-            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error":str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
-                           
+            if not user:
+                return Response(
+                    {"error": "Invalid email or password"},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
 
+            if not user.is_verified:
+                return Response(
+                    {"error": "Email not verified"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            if not user.is_active:
+                return Response(
+                    {"error": "User account is inactive"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "message": "Login successful",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
+            }, status=status.HTTP_200_OK)
+
+        except DRFValidationError as e:
+            return Response(
+                {"error": e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception:
+            return Response(
+                {"error": "Something went wrong"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+                             
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = GoogleAuthSerializer
 
     def post(self,request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        code = serializer.validated_data.get("code")
+
         try:
-            code = request.data.get("code")
-            if not code:
-                return Response({"error": "Code is required"}, status=status.HTTP_400_BAD_REQUEST)
-            try:
                 token_url = "https://oauth2.googleapis.com/token"
                 data = {
                     "code": code,
@@ -173,9 +220,9 @@ class GoogleAuthView(APIView):
                 token_res.raise_for_status()
                 token_data = token_res.json()
                 access_token = token_data.get("access_token")
-            except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e:
                 return Response({"error": f"Failed to get token from Google: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-            try:
+        try:
                 user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
                 user_res = requests.get(user_info_url, headers={"Authorization": f"Bearer {access_token}"})
                 user_res.raise_for_status()
@@ -183,9 +230,9 @@ class GoogleAuthView(APIView):
                 email = user_data.get("email")
                 name = user_data.get("name")
                 picture = user_data.get("picture")
-            except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e:
                 return Response({"error": f"Failed to get user info from Google: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-            try:
+        try:
                 user, created = User.objects.get_or_create(
                     email=email,
                     defaults={
@@ -194,9 +241,9 @@ class GoogleAuthView(APIView):
                         "is_verified": True  
                     }
                 )
-            except Exception as e:
+        except Exception as e:
                 return Response({"error": f"Failed to create/get user: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            try:
+        try:
                 refresh = RefreshToken.for_user(user)
                 return Response({
                     "refresh": str(refresh),
@@ -207,14 +254,15 @@ class GoogleAuthView(APIView):
                         "picture": picture
                     }
                 }, status=status.HTTP_200_OK)
-            except Exception as e:
+        except Exception as e:
                 return Response({"error": f"Failed to generate JWT: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         except Exception as e:
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class EnableMfaView(APIView):
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication] 
 
     def get(self,request):
         secret = pyotp.random_base32()
@@ -237,10 +285,14 @@ class EnableMfaView(APIView):
 
 class VerifyMFAView(APIView):
     permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication] 
+    serializer_class = VerifyMFASerializer
 
-    def post(self, request):
-        code = request.data.get("code")
+    def post(self, request):       
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        code = serializer.validated_data.get("code")
         try:
             mfa = UserMFA.objects.get(user=request.user)
             totp = pyotp.TOTP(mfa.secret)
@@ -258,12 +310,13 @@ class VerifyMFAView(APIView):
 class ForgotPassView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = ForgotPassSerializer
 
     def post(self,request):
-        email = request.data.get('email')
-
-        if not email:
-            return Response({"error":"Email required"},status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data.get("email")
         try:
             user = User.objects.get(email=email)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -286,13 +339,14 @@ class ForgotPassView(APIView):
 class ResetPassView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = ResetPassSerializer
 
     def post(self,request,uidb64,token):
-        password = request.data.get('password')
 
-        if not password:
-            return Response({"error":"Password Required"},status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        password = serializer.validated_data.get("password")
         try:
           uid = urlsafe_base64_decode(uidb64).decode()
           user = User.objects.get(pk=uid)

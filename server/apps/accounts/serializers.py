@@ -41,3 +41,23 @@ class LoginSerializer(serializers.Serializer):
      email = serializers.EmailField(required=True)
      password = serializers.CharField(required=True,write_only=True)
 
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+class ResendOtpSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class GoogleAuthSerializer(serializers.Serializer):
+    code = serializers.CharField()
+
+class VerifyMFASerializer(serializers.Serializer):
+    code = serializers.CharField()
+
+class ForgotPassSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class ResetPassSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+
