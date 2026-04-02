@@ -90,7 +90,7 @@ DATABASES = {
         'NAME': os.getenv('DB_NAME'),
         'USER': os.getenv('DB_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
+        'HOST': os.getenv('DB_HOST','localhost'),
         'PORT': os.getenv('DB_PORT'),
     }
 }
@@ -177,7 +177,7 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-PECTACULAR_SETTINGS = {
+SPECTACULAR_SETTINGS = {
     'TITLE': 'Collabrix API',
     'DESCRIPTION': 'API documentation for Collabrix Platform',
     'VERSION': '1.0.0',

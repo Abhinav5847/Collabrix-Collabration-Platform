@@ -1,32 +1,30 @@
-# Python
+
 *.pyc
 __pycache__/
 *.pyo
 *.pyd
 
-# Django
 *.log
 db.sqlite3
 
-# Backend
 server/myenv/
 server/db.sqlite3
 
-# Frontend
 client/node_modules/
 node_modules/
 
-# Env
+
 .env
 server/.env
 
-# Build
 dist/
 build/
 
-# Editor
+
 .vscode/
 
-# OS
 .DS_Store
 Thumbs.db
+
+# Docker database data
+postgres_data/
