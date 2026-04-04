@@ -13,6 +13,9 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import EnableMFA from './pages/EnableMFA';
 import VerifyMFA from './pages/VerifyMFA';
+import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
+import WorkspaceDetail from './pages/Workspace/WorkspaceDetail';
+import CreateWorkspace from './pages/Workspace/CreateWorkspace';
 
 
 function App() {
@@ -21,17 +24,25 @@ function App() {
 
   return (
     <>
-       <Router>
+
+
+     <Router>
       <Routes>
+        {/* Auth Routes (No Navbar) */}
         <Route path="/register" element={<UserRegister/>} />
-        <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/login" element={<UserLogin/>} />
-        <Route path="/" element={<Dashboard/>} />
+        <Route path="/verify-otp" element={<VerifyOTP/>} />
         <Route path="/forgot_password" element={<ForgotPassword/>} />
         <Route path="/reset_password/:uid/:token" element={<ResetPassword/>} />
         <Route path="/google/callback" element={<GoogleCallback/>} />
-        <Route path="/enable_Mfa" element={<EnableMFA/>} />
-        <Route path="/verify_Mfa" element={<VerifyMFA/>} />
+ 
+        <Route element={<WorkspaceLayout/>}>
+          <Route path="/" element={<Dashboard/>} />
+          <Route path="/workspace/:id" element={<WorkspaceDetail/>} />
+          <Route path="/workspace/create" element={<CreateWorkspace/>} />
+          <Route path="/enable_Mfa" element={<EnableMFA/>} />
+          <Route path="/verify_Mfa" element={<VerifyMFA/>} />
+        </Route>
       </Routes>
     </Router>
     </>
