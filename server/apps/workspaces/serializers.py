@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.utils.text import slugify
-from .models import WorkSpace
+from .models import WorkSpace,WorkspaceMember
+from django.contrib.auth import get_user_model
 
 class WorkspaceSerializer(serializers.ModelSerializer):
     name = serializers.CharField(
@@ -20,3 +21,19 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         if len(value) < 3:
             raise serializers.ValidationError("Workspace name must be at least 3 characters long.")
         return value
+
+User = get_user_model()
+
+class WorkspaceMemberSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    email = serializers.ReadOnlyField(source='user.email')
+    user_id = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(),source='user',write_only=True)
+
+    class Meta:
+        model=WorkspaceMember
+        fields = ['id', 'user_id', 'username', 'email', 'role']
+    
+    def validate_role(self, value):
+        if value == 'OWNER':
+            raise serializers.ValidationError("Cannot manually assign OWNER role. Only the creator is the owner.")
+        return value    
