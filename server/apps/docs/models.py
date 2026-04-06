@@ -8,6 +8,18 @@ class Document(models.Model):
     creator = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateField(auto_now_add=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(auto_now_add=True,null=True, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = None
+        self.save()
+
+    def restore(self):
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save()    
 
     def __str__(self):
         return self.title
