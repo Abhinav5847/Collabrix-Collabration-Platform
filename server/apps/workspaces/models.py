@@ -30,3 +30,22 @@ class WorkspaceMember(models.Model):
     
     def __str__(self):
         return f"{self.user} - {self.role} in {self.workspace.name}"
+    
+class WorkspaceMessage(models.Model):
+    workspace = models.ForeignKey(
+        WorkSpace, 
+        on_delete=models.CASCADE, 
+        related_name='chat_messages'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE
+    )
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"{self.user.email}: {self.content[:20]}"    
