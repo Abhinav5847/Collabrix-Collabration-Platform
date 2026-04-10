@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+
 from django.core.asgi import get_asgi_application
 
 # 1. Ensure the path is set so it matches settings.py
@@ -16,8 +17,8 @@ django_asgi_app = get_asgi_application()
 
 # 3. NOW import your custom code that depends on models/tasks
 from channels.routing import ProtocolTypeRouter, URLRouter
+from workspaces.middleware import JWTAuthMiddleware
 from workspaces.routing import websocket_urlpatterns
-from workspaces.middleware import JWTAuthMiddleware 
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,

@@ -2,6 +2,6 @@ from django.apps import AppConfig
 
 
 class DocsConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.docs'
-    label = 'apps_docs'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.docs"
+    label = "apps_docs"
