@@ -211,3 +211,12 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'delete-old-trash-every-midnight': {
+        'task': 'apps.workspaces.tasks.permanent_delete_old_trash',
+        'schedule': crontab(hour=0, minute=0),
+    },
+}
