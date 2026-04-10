@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 
-sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
+# sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 
 
@@ -55,9 +55,12 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.workspaces',
     'apps.docs',
+    'apps.notifications',
     'rest_framework',
     'corsheaders',
     'drf_spectacular',
+    'django_celery_results',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -148,13 +151,13 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = 'apps_accounts.User'
 
 CORS_ALLOW_ALL_ORIGINS = True
 
 
 AUTHENTICATION_BACKENDS = [
-    'accounts.backends.EmailBackend',       
+    'apps.accounts.backends.EmailBackend',       
     'django.contrib.auth.backends.ModelBackend', 
 ]
 
@@ -202,3 +205,9 @@ CHANNEL_LAYERS = {
     },
 }
 
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = 'django-db'  
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
