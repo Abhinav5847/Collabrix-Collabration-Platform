@@ -3,7 +3,6 @@ from django.dispatch import receiver
 
 from .models import WorkSpace, WorkspaceMember
 
-
 @receiver(post_save, sender=WorkSpace)
 def create_Owner(sender, instance, created, **kwargs):
     if created:

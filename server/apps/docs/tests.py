@@ -1,216 +1,203 @@
-# from django.test import TestCase
-
-# # Create your tests here.
-# # tests/test_document_api.py
-
-# from django.urls import reverse
-# from rest_framework.test import APITestCase, APIClient
-# from rest_framework import status
-# from django.contrib.auth import get_user_model
-
-# from apps.workspaces.models import WorkSpace, WorkspaceMember
-# from .models import Document
+from django.test import TestCase
+from django.urls import reverse
+from rest_framework.test import APITestCase, APIClient
+from rest_framework import status
+from django.contrib.auth import get_user_model
 
-# User = get_user_model()
+from apps.workspaces.models import WorkSpace, WorkspaceMember
+from .models import Document
 
+User = get_user_model()
 
-# class DocumentAPITest(APITestCase):
-#     def setUp(self):
-#         self.client = APIClient()
+class DocumentAPITest(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
 
-#         self.user = User.objects.create_user(
-#             username="testuser",
-#             email="user@test.com",
-#             password="password123"
-#         )
-
-#         self.other_user = User.objects.create_user(
-#             username="otheruser",
-#             email="other@test.com",
-#             password="password123"
-#         )
+        self.user = User.objects.create_user(
+            username="testuser",
+            email="user@test.com",
+            password="password123"
+        )
 
-#         self.viewer_user = User.objects.create_user(
-#             username="viewer",
-#             email="viewer@test.com",
-#             password="password123"
-#         )
+        self.other_user = User.objects.create_user(
+            username="otheruser",
+            email="other@test.com",
+            password="password123"
+        )
 
-#         self.client.force_authenticate(user=self.user)
+        self.viewer_user = User.objects.create_user(
+            username="viewer",
+            email="viewer@test.com",
+            password="password123"
+        )
 
-#         self.workspace = WorkSpace.objects.create(
-#             name="Test Workspace",
-#             owner=self.user
-#         )
+        self.client.force_authenticate(user=self.user)
 
-#         # owner already auto-added (important from your previous bug)
-#         WorkspaceMember.objects.get_or_create(
-#             workspace=self.workspace,
-#             user=self.user,
-#             defaults={"role": "OWNER"}
-#         )
+        self.workspace = WorkSpace.objects.create(
+            name="Test Workspace",
+            owner=self.user
+        )
 
-#         WorkspaceMember.objects.create(
-#             workspace=self.workspace,
-#             user=self.other_user,
-#             role="EDITOR"
-#         )
+        WorkspaceMember.objects.get_or_create(
+            workspace=self.workspace,
+            user=self.user,
+            defaults={"role": "OWNER"}
+        )
 
-#         WorkspaceMember.objects.create(
-#             workspace=self.workspace,
-#             user=self.viewer_user,
-#             role="VIEWER"
-#         )
+        WorkspaceMember.objects.create(
+            workspace=self.workspace,
+            user=self.other_user,
+            role="EDITOR"
+        )
 
-#         self.document = Document.objects.create(
-#             title="Test Doc",
-#             content="Test Content",
-#             workspace=self.workspace,
-#             creator=self.user
-#         )
+        WorkspaceMember.objects.create(
+            workspace=self.workspace,
+            user=self.viewer_user,
+            role="VIEWER"
+        )
 
-#     # -----------------------------
-#     # DOCUMENT LIST
-#     # -----------------------------
-#     def test_get_documents(self):
-#         url = reverse("document-list-create", args=[self.workspace.id])
+        self.document = Document.objects.create(
+            title="Test Doc",
+            content="Test Content",
+            workspace=self.workspace,
+            creator=self.user
+        )
 
-#         response = self.client.get(url)
 
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
+    #  document list
+    def test_get_documents(self):
+        url = reverse("document-list-create", args=[self.workspace.id])
 
-#     def test_get_documents_not_member(self):
-#         new_user = User.objects.create_user(
-#             username="outsider",
-#             password="pass"
-#         )
+        response = self.client.get(url)
 
-#         self.client.force_authenticate(user=new_user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-#         url = reverse("document-list-create", args=[self.workspace.id])
-#         response = self.client.get(url)
+    def test_get_documents_not_member(self):
+        new_user = User.objects.create_user(
+            username="outsider",
+            password="pass"
+        )
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(user=new_user)
 
-#     # -----------------------------
-#     # DOCUMENT CREATE
-#     # -----------------------------
-#     def test_create_document_success(self):
-#         url = reverse("document-list-create", args=[self.workspace.id])
+        url = reverse("document-list-create", args=[self.workspace.id])
+        response = self.client.get(url)
 
-#         data = {
-#             "title": "New Doc",
-#             "content": "Some content"
-#         }
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-#         response = self.client.post(url, data)
+    #   document create
+    def test_create_document_success(self):
+        url = reverse("document-list-create", args=[self.workspace.id])
 
-#         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = {
+            "title": "New Doc",
+            "content": "Some content"
+        }
 
-#     def test_create_document_viewer_forbidden(self):
-#         self.client.force_authenticate(user=self.viewer_user)
+        response = self.client.post(url, data)
 
-#         url = reverse("document-list-create", args=[self.workspace.id])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-#         response = self.client.post(url, {
-#             "title": "Fail Doc",
-#             "content": "No permission"
-#         })
+    def test_create_document_viewer_forbidden(self):
+        self.client.force_authenticate(user=self.viewer_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        url = reverse("document-list-create", args=[self.workspace.id])
 
-#     # -----------------------------
-#     # DOCUMENT DETAIL
-#     # -----------------------------
-#     def test_get_document(self):
-#         url = reverse("document-detail", args=[self.document.id])
+        response = self.client.post(url, {
+            "title": "Fail Doc",
+            "content": "No permission"
+        })
 
-#         response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
+      #document detail
+    def test_get_document(self):
+        url = reverse("document-detail", args=[self.document.id])
 
-#     def test_update_document_as_editor(self):
-#         self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(url)
 
-#         url = reverse("document-detail", args=[self.document.id])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-#         response = self.client.put(url, {"title": "Updated"})
+    def test_update_document_as_editor(self):
+        self.client.force_authenticate(user=self.other_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse("document-detail", args=[self.document.id])
 
-#     def test_update_document_viewer_forbidden(self):
-#         self.client.force_authenticate(user=self.viewer_user)
+        response = self.client.put(url, {"title": "Updated"})
 
-#         url = reverse("document-detail", args=[self.document.id])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-#         response = self.client.put(url, {"title": "Hack"})
+    def test_update_document_viewer_forbidden(self):
+        self.client.force_authenticate(user=self.viewer_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        url = reverse("document-detail", args=[self.document.id])
 
-#     def test_delete_document(self):
-#         url = reverse("document-detail", args=[self.document.id])
+        response = self.client.put(url, {"title": "Hack"})
 
-#         response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-#         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+    def test_delete_document(self):
+        url = reverse("document-detail", args=[self.document.id])
 
-#     def test_delete_document_viewer_forbidden(self):
-#         self.client.force_authenticate(user=self.viewer_user)
+        response = self.client.delete(url)
 
-#         url = reverse("document-detail", args=[self.document.id])
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-#         response = self.client.delete(url)
+    def test_delete_document_viewer_forbidden(self):
+        self.client.force_authenticate(user=self.viewer_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        url = reverse("document-detail", args=[self.document.id])
 
-#     # -----------------------------
-#     # TRASH
-#     # -----------------------------
-#     def test_get_trash_documents(self):
-#         self.document.soft_delete()
+        response = self.client.delete(url)
 
-#         url = reverse("document-trash", args=[self.workspace.id])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-#         response = self.client.get(url)
+    #   trash list
+    def test_get_trash_documents(self):
+        self.document.soft_delete()
 
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse("document-trash", args=[self.workspace.id])
 
-#     def test_restore_document(self):
-#         self.document.soft_delete()
+        response = self.client.get(url)
 
-#         url = reverse("document-restore", args=[self.document.id])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-#         response = self.client.post(url)
+    def test_restore_document(self):
+        self.document.soft_delete()
 
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse("document-restore", args=[self.document.id])
 
-#     def test_restore_document_viewer_forbidden(self):
-#         self.document.soft_delete()
+        response = self.client.post(url)
 
-#         self.client.force_authenticate(user=self.viewer_user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-#         url = reverse("document-restore", args=[self.document.id])
+    def test_restore_document_viewer_forbidden(self):
+        self.document.soft_delete()
 
-#         response = self.client.post(url)
+        self.client.force_authenticate(user=self.viewer_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        url = reverse("document-restore", kwargs={"pk": self.document.id})
 
-#     def test_permanent_delete_owner_only(self):
-#         self.document.soft_delete()
+        response = self.client.post(url)
 
-#         url = reverse("document-permanent-delete", args=[self.document.id])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-#         response = self.client.delete(url)
+    def test_permanent_delete_owner_only(self):
+        self.document.soft_delete()
 
-#         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        url = reverse("document-permanent-delete", args=[self.document.id])
 
-#     def test_permanent_delete_not_owner(self):
-#         self.document.soft_delete()
+        response = self.client.delete(url)
 
-#         self.client.force_authenticate(user=self.other_user)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-#         url = reverse("document-permanent-delete", args=[self.document.id])
+    def test_permanent_delete_not_owner(self):
+        self.document.soft_delete()
 
-#         response = self.client.delete(url)
+        self.client.force_authenticate(user=self.other_user)
 
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        url = reverse("document-permanent-delete", args=[self.document.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

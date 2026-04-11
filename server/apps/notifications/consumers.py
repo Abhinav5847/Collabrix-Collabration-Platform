@@ -13,7 +13,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
         else:
-            # Reject connection if not logged in
+          
             await self.close()
 
     async def disconnect(self, close_code):
