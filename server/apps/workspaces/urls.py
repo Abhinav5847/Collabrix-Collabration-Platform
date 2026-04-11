@@ -9,13 +9,13 @@ from .views import (
 
 urlpatterns = [
     path("", WorkspaceListCreateView.as_view(), name="workspace"),
-    path("<int:pk>/", WorkspaceDetailView.as_view(), name="workspace_details"),
+    path("<int:pk>/", WorkspaceDetailView.as_view(), name="workspace-detail"),
     path(
-        "workspace/<int:pk>/members/", MembersListCreateview.as_view(), name="members"
+        "workspace/<int:pk>/members/", MembersListCreateview.as_view(), name="workspace-members"
     ),
     path(
         "workspace/<int:pk>/members/<int:member_id>/",
         MembersDetailView.as_view(),
-        name="members_details",
+        name="workspace-member-detail",
     ),
 ]
