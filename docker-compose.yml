@@ -1,81 +1,144 @@
+version: '3.8'
+
 services:
+  # Infrastructure
   db:
     image: postgres:15
     container_name: postgres_db
-    env_file:
-      - ./server/.env
-    environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-    ports:
-      - "5432:5432"
+    env_file: ./server/.env
+    restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: always
 
   redis:
     image: redis:7-alpine
     container_name: redis_server
-    # ports:
-    #   - "6379:6379"
-    expose:
-      - "6379"
     restart: always
 
+  # SERVICE 1: Django Web App
   backend:
     build: ./server
     container_name: django_backend
     volumes:
       - ./server:/app
-    ports:
-      - "8000:8000"
-
-    env_file:
-      - ./server/.env
+    env_file: ./server/.env
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
-    depends_on:
-      - db
-      - redis
+    depends_on: [db, redis]
+
+  # SERVICE 2: FastAPI AI Service
+  ai_service:
+    build: ./ai_service
+    container_name: fastapi_ai
+    volumes:
+      - ./ai_service:/app
     restart: on-failure
 
+  # THE ENTRY POINT (Gateway)
+  gateway:
+    image: nginx:latest
+    container_name: common_gateway
+    ports:
+      - "80:80"  # Access via http://localhost/
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on: [backend, ai_service]
+    restart: always
+
+  # Background Worker (Linked to Service 1)
   celery_worker:
     build: ./server
     container_name: collabrix_worker
     command: celery -A config worker --loglevel=info
-    volumes:
-      - ./server:/app
-    env_file:
-      - ./server/.env
-    environment:
-      - DB_HOST=db
-      - REDIS_HOST=redis
-    depends_on:
-      - db
-      - redis
-      - backend
-    restart: on-failure
-
-  celery_beat:
-    build: ./server
-    container_name: collabrix_beat
-    command: celery -A config beat --loglevel=info
-    volumes:
-      - ./server:/app
-    env_file:
-      - ./server/.env
-    environment:
-      - DB_HOST=db
-      - REDIS_HOST=redis
-    depends_on:
-      - db
-      - redis
-      - backend
-    restart: on-failure    
+    env_file: ./server/.env
+    depends_on: [db, redis, backend]
 
 volumes:
   postgres_data:
+
+
+
+
+  # old
+# services:
+#   db:
+#     image: postgres:15
+#     container_name: postgres_db
+#     env_file:
+#       - ./server/.env
+#     environment:
+#       - POSTGRES_DB=${DB_NAME}
+#       - POSTGRES_USER=${DB_USER}
+#       - POSTGRES_PASSWORD=${DB_PASSWORD}
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     restart: always
+
+#   redis:
+#     image: redis:7-alpine
+#     container_name: redis_server
+#     # ports:
+#     #   - "6379:6379"
+#     expose:
+#       - "6379"
+#     restart: always
+
+#   backend:
+#     build: ./server
+#     container_name: django_backend
+#     volumes:
+#       - ./server:/app
+#     ports:
+#       - "8000:8000"
+
+#     env_file:
+#       - ./server/.env
+#     environment:
+#       - DB_HOST=db
+#       - REDIS_HOST=redis
+#     depends_on:
+#       - db
+#       - redis
+#     restart: on-failure
+
+#   celery_worker:
+#     build: ./server
+#     container_name: collabrix_worker
+#     command: celery -A config worker --loglevel=info
+#     volumes:
+#       - ./server:/app
+#     env_file:
+#       - ./server/.env
+#     environment:
+#       - DB_HOST=db
+#       - REDIS_HOST=redis
+#     depends_on:
+#       - db
+#       - redis
+#       - backend
+#     restart: on-failure
+
+#   celery_beat:
+#     build: ./server
+#     container_name: collabrix_beat
+#     command: celery -A config beat --loglevel=info
+#     volumes:
+#       - ./server:/app
+#     env_file:
+#       - ./server/.env
+#     environment:
+#       - DB_HOST=db
+#       - REDIS_HOST=redis
+#     depends_on:
+#       - db
+#       - redis
+#       - backend
+#     restart: on-failure    
+
+# volumes:
+#   postgres_data:
 
 
