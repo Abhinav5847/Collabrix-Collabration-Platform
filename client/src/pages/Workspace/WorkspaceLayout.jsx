@@ -23,7 +23,7 @@ export default function WorkspaceLayout() {
             try {
                 const [wsRes, userRes] = await Promise.all([
                     api.get('workspaces/'),
-                    api.get('auth/user/')
+                    api.get('accounts/user/')
                 ]);
                 setWorkspaces(wsRes.data);
                 setUser(userRes.data);

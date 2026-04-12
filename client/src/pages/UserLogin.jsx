@@ -1,57 +1,51 @@
 import React, { useState } from "react";
-import { api } from "../services/api";
+import { useDispatch, useSelector } from "react-redux"; // Added
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
+import { loginUser } from "../store/slices/authSlice"; // Added
 import "react-toastify/dist/ReactToastify.css";
 
 const UserLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
   const navigate = useNavigate();
+  
+  const { loading } = useSelector((state) => state.auth);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
-      const res = await api.post("/accounts/login/", form);
+    const resultAction = await dispatch(loginUser(form));
 
-      localStorage.setItem("access", res.data.access);
-      localStorage.setItem("refresh", res.data.refresh);
-
-      toast.success(res.data.message, {
+    if (loginUser.fulfilled.match(resultAction)) {
+      toast.success("Login Successful!", {
         position: "top-right",
-        autoClose: 3000,
+        autoClose: 2000,
       });
-
       setTimeout(() => navigate("/"), 1000);
-    } catch (err) {
-      let message = "Something went wrong";
-      if (err.response?.data) {
-        message = Object.values(err.response.data).flat().join(", ");
-      }
+    } else {
+      const message = resultAction.payload || "Something went wrong";
+      
+      const formattedMessage = typeof message === 'object' 
+        ? Object.values(message).flat().join(", ") 
+        : message;
 
-      toast.error(message, {
+      toast.error(formattedMessage, {
         position: "top-right",
         autoClose: 5000,
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleGoogleLogin = () => {
-    const clientId =
-      "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
+    const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
     const redirectUri = "http://localhost:5173/google/callback";
     const scope = "email profile";
-
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-
     window.location.href = googleUrl;
   };
 
@@ -107,7 +101,7 @@ const UserLogin = () => {
           <button
             type="submit"
             className="btn btn-primary w-100"
-            disabled={loading}
+            disabled={loading} // Uses Redux loading state
           >
             {loading ? "Logging in..." : "Login"}
           </button>
@@ -144,12 +138,8 @@ const UserLogin = () => {
             cursor: "pointer",
             transition: "all 0.2s ease",
           }}
-          onMouseOver={(e) =>
-            (e.currentTarget.style.backgroundColor = "#f7f7f7")
-          }
-          onMouseOut={(e) =>
-            (e.currentTarget.style.backgroundColor = "#fff")
-          }
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f7f7f7")}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
         >
           <FcGoogle size={22} style={{ marginRight: "10px" }} />
           Continue with Google
