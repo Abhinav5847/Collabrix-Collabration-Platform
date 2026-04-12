@@ -6,10 +6,10 @@ from django.core.asgi import get_asgi_application
 
 # 1. Ensure the path is set so it matches settings.py
 BASE_DIR = Path(__file__).resolve().parent.parent
-if os.path.join(BASE_DIR, 'apps') not in sys.path:
-    sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
+if os.path.join(BASE_DIR, "apps") not in sys.path:
+    sys.path.insert(0, os.path.join(BASE_DIR, "apps"))
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 # 2. Initialize the Django ASGI application FIRST
 # This loads the App Registry and makes models available
@@ -20,9 +20,9 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from workspaces.middleware import JWTAuthMiddleware
 from workspaces.routing import websocket_urlpatterns
 
-application = ProtocolTypeRouter({
-    "http": django_asgi_app,
-    "websocket": JWTAuthMiddleware(
-        URLRouter(websocket_urlpatterns)
-    ),
-})
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": JWTAuthMiddleware(URLRouter(websocket_urlpatterns)),
+    }
+)

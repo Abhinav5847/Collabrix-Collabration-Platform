@@ -1,68 +1,56 @@
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
-from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient, APITestCase
 
 from apps.workspaces.models import WorkSpace, WorkspaceMember
+
 from .models import Document
 
 User = get_user_model()
+
 
 class DocumentAPITest(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
         self.user = User.objects.create_user(
-            username="testuser",
-            email="user@test.com",
-            password="password123"
+            username="testuser", email="user@test.com", password="password123"
         )
 
         self.other_user = User.objects.create_user(
-            username="otheruser",
-            email="other@test.com",
-            password="password123"
+            username="otheruser", email="other@test.com", password="password123"
         )
 
         self.viewer_user = User.objects.create_user(
-            username="viewer",
-            email="viewer@test.com",
-            password="password123"
+            username="viewer", email="viewer@test.com", password="password123"
         )
 
         self.client.force_authenticate(user=self.user)
 
         self.workspace = WorkSpace.objects.create(
-            name="Test Workspace",
-            owner=self.user
+            name="Test Workspace", owner=self.user
         )
 
         WorkspaceMember.objects.get_or_create(
-            workspace=self.workspace,
-            user=self.user,
-            defaults={"role": "OWNER"}
+            workspace=self.workspace, user=self.user, defaults={"role": "OWNER"}
         )
 
         WorkspaceMember.objects.create(
-            workspace=self.workspace,
-            user=self.other_user,
-            role="EDITOR"
+            workspace=self.workspace, user=self.other_user, role="EDITOR"
         )
 
         WorkspaceMember.objects.create(
-            workspace=self.workspace,
-            user=self.viewer_user,
-            role="VIEWER"
+            workspace=self.workspace, user=self.viewer_user, role="VIEWER"
         )
 
         self.document = Document.objects.create(
             title="Test Doc",
             content="Test Content",
             workspace=self.workspace,
-            creator=self.user
+            creator=self.user,
         )
-
 
     #  document list
     def test_get_documents(self):
@@ -73,10 +61,7 @@ class DocumentAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_get_documents_not_member(self):
-        new_user = User.objects.create_user(
-            username="outsider",
-            password="pass"
-        )
+        new_user = User.objects.create_user(username="outsider", password="pass")
 
         self.client.force_authenticate(user=new_user)
 
@@ -89,10 +74,7 @@ class DocumentAPITest(APITestCase):
     def test_create_document_success(self):
         url = reverse("document-list-create", args=[self.workspace.id])
 
-        data = {
-            "title": "New Doc",
-            "content": "Some content"
-        }
+        data = {"title": "New Doc", "content": "Some content"}
 
         response = self.client.post(url, data)
 
@@ -103,14 +85,13 @@ class DocumentAPITest(APITestCase):
 
         url = reverse("document-list-create", args=[self.workspace.id])
 
-        response = self.client.post(url, {
-            "title": "Fail Doc",
-            "content": "No permission"
-        })
+        response = self.client.post(
+            url, {"title": "Fail Doc", "content": "No permission"}
+        )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-      #document detail
+    # document detail
     def test_get_document(self):
         url = reverse("document-detail", args=[self.document.id])
 

@@ -15,13 +15,13 @@ urlpatterns = [
         name="document-trash",
     ),
     path(
-        "documents/<int:pk>/restore/", 
-        DocumentTrashView.as_view(), 
-        name="document-restore"
+        "documents/<int:pk>/restore/",
+        DocumentTrashView.as_view(),
+        name="document-restore",
     ),
     path(
-        "documents/<int:pk>/permanent-delete/", 
-        DocumentTrashView.as_view(), 
-        name="document-permanent-delete"
+        "documents/<int:pk>/permanent-delete/",
+        DocumentTrashView.as_view(),
+        name="document-permanent-delete",
     ),
 ]
