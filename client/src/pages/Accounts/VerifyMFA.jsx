@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
-import { verifyMfa } from "../../store/slices/authSlice"; // Changed from verifyOtp to verifyMfa
+import { verifyMfa } from "../../store/slices/authSlice"; 
 import "react-toastify/dist/ReactToastify.css";
 
 const VerifyOTP = () => {
