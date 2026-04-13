@@ -1,27 +1,29 @@
 import React, { useState } from "react";
-import { api } from "../services/api";
-import { toast, ToastContainer } from "react-toastify";
+import { useDispatch, useSelector } from "react-redux"; // Added
 import { useNavigate } from "react-router-dom";
+import { toast, ToastContainer } from "react-toastify";
+import { forgotPassword } from "../../store/slices/authSlice"; // Added
 import "react-toastify/dist/ReactToastify.css";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { loading } = useSelector((state) => state.auth); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      await api.post("/accounts/forgot_pass/", { email });
+    const resultAction = await dispatch(forgotPassword(email));
 
+    if (forgotPassword.fulfilled.match(resultAction)) {
       toast.success("If the email exists, a reset link has been sent", {
         position: "top-right",
         autoClose: 3000,
       });
-
       setTimeout(() => navigate("/login"), 1500);
-    } catch (err) {
-      toast.error("Something went wrong", {
+    } else {
+      toast.error(resultAction.payload || "Something went wrong", {
         position: "top-right",
         autoClose: 3000,
       });
@@ -29,8 +31,8 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-      <div className="card shadow p-4" style={{ width: "400px" }}>
+    <div className="container-fluid d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="card shadow p-4" style={{ width: "100%", maxWidth: "400px" }}>
         <h3 className="text-center mb-4">Forgot Password</h3>
 
         <form onSubmit={handleSubmit}>
@@ -46,8 +48,8 @@ const ForgotPassword = () => {
             />
           </div>
 
-          <button className="btn btn-primary w-100">
-            Send Reset Link
+          <button className="btn btn-primary w-100" disabled={loading}>
+            {loading ? "Sending..." : "Send Reset Link"}
           </button>
         </form>
 

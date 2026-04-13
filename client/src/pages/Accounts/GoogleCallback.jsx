@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { api } from "../services/api";
+import { api } from "../../services/api";
 
 const GoogleCallback = () => {
   const navigate = useNavigate();

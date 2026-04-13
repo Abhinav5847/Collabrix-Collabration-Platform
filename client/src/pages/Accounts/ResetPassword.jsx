@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import { useDispatch, useSelector } from "react-redux"; 
 import { toast, ToastContainer } from "react-toastify";
+import { resetPassword } from "../../store/slices/authSlice"; 
 import "react-toastify/dist/ReactToastify.css";
 
 const ResetPassword = () => {
   const { uid, token } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const { loading } = useSelector((state) => state.auth);
 
   const [form, setForm] = useState({
     password: "",
@@ -15,7 +19,6 @@ const ResetPassword = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -28,29 +31,30 @@ const ResetPassword = () => {
       return;
     }
 
-    setLoading(true);
+    const resultAction = await dispatch(
+      resetPassword({ uid, token, password: form.password })
+    );
 
-    try {
-      await api.post(`/accounts/reset_pass/${uid}/${token}/`, {
-        password: form.password,
-      });
-
+    if (resetPassword.fulfilled.match(resultAction)) {
       toast.success("Password reset successful!");
       setTimeout(() => navigate("/login"), 1500);
-    } catch (err) {
+    } else {
+      const errorData = resultAction.payload;
       let message = "Invalid or expired link";
-      if (err.response?.data) {
-        message = Object.values(err.response.data).flat().join(", ");
+      
+      if (typeof errorData === "object" && errorData !== null) {
+        message = Object.values(errorData).flat().join(", ");
+      } else if (typeof errorData === "string") {
+        message = errorData;
       }
+      
       toast.error(message);
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-      <div className="card shadow p-4" style={{ width: "400px" }}>
+    <div className="container-fluid d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="card shadow p-4 w-100" style={{ maxWidth: "400px" }}>
         <h3 className="text-center mb-4">Reset Password</h3>
 
         <form onSubmit={handleSubmit}>
@@ -110,26 +114,29 @@ const ResetPassword = () => {
             <div className="mb-3">
               <small
                 style={{
-                  color:
-                    form.password === form.confirmPassword
-                      ? "green"
-                      : "red",
+                  color: form.password === form.confirmPassword ? "green" : "red",
                 }}
               >
                 {form.password === form.confirmPassword
-                  ? "Passwords match"
-                  : "Passwords do not match"}
+                  ? "✓ Passwords match"
+                  : "✗ Passwords do not match"}
               </small>
             </div>
           )}
-
 
           <button
             type="submit"
             className="btn btn-success w-100"
             disabled={loading}
           >
-            {loading ? "Resetting..." : "Reset Password"}
+            {loading ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2"></span>
+                Resetting...
+              </>
+            ) : (
+              "Reset Password"
+            )}
           </button>
         </form>
 

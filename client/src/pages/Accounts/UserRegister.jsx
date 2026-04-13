@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { api } from "../services/api";
+import { useDispatch, useSelector } from "react-redux"; // Added Redux hooks
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
+import { registerUser } from "../../store/slices/authSlice"; // Import your thunk
 import "react-toastify/dist/ReactToastify.css";
 
 const UserRegister = () => {
@@ -13,30 +14,47 @@ const UserRegister = () => {
     confirm_password: "",
   });
 
+  const dispatch = useDispatch();
   const navigate = useNavigate();
+  
+  // Get loading state from auth slice to disable button during request
+  const { loading } = useSelector((state) => state.auth);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      const res = await api.post("/accounts/register/", form);
+    // Client-side check before hitting the API
+    if (form.password !== form.confirm_password) {
+      return toast.error("Passwords do not match");
+    }
 
-      toast.success(res.data.message, {
+    // Dispatch the registration thunk
+    const resultAction = await dispatch(registerUser(form));
+
+    if (registerUser.fulfilled.match(resultAction)) {
+      toast.success(resultAction.payload.message || "Registration successful!", {
         position: "top-right",
         autoClose: 3000,
       });
 
+      // Navigate to OTP page, passing email for the next step
       setTimeout(() => {
         navigate("/verify-otp", { state: { email: form.email } });
       }, 1000);
-    } catch (err) {
-      let message = "Something went wrong";
-      if (err.response?.data) {
-        message = Object.values(err.response.data).flat().join(", ");
+    } else {
+      // Logic to handle Django error objects or strings
+      const errorData = resultAction.payload;
+      let message = "Registration failed";
+      
+      if (typeof errorData === 'object' && errorData !== null) {
+        message = Object.entries(errorData)
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+          .join(" | ");
+      } else if (typeof errorData === 'string') {
+        message = errorData;
       }
 
       toast.error(message, {
@@ -47,24 +65,23 @@ const UserRegister = () => {
   };
 
   const handleGoogleLogin = () => {
-    const clientId =
-      "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
+    const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
     const redirectUri = "http://localhost:5173/google/callback";
     const scope = "email profile";
-
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-
     window.location.href = googleUrl;
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-      <div className="card shadow p-4" style={{ width: "400px" }}>
-        <h3 className="text-center mb-4">User Registration</h3>
+    // Use container-fluid and min-vh-100 for proper centering on all devices
+    <div className="container-fluid d-flex justify-content-center align-items-center min-vh-100 bg-light p-3">
+      {/* Responsive card: 100% width on small screens, max 400px on large */}
+      <div className="card shadow border-0 p-4 w-100" style={{ maxWidth: "400px" }}>
+        <h3 className="text-center mb-4 fw-bold">User Registration</h3>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
-            <label className="form-label">Email</label>
+            <label className="form-label small fw-bold text-secondary">Email</label>
             <input
               type="email"
               name="email"
@@ -77,7 +94,7 @@ const UserRegister = () => {
           </div>
 
           <div className="mb-3">
-            <label className="form-label">Username</label>
+            <label className="form-label small fw-bold text-secondary">Username</label>
             <input
               type="text"
               name="username"
@@ -90,7 +107,7 @@ const UserRegister = () => {
           </div>
 
           <div className="mb-3">
-            <label className="form-label">Password</label>
+            <label className="form-label small fw-bold text-secondary">Password</label>
             <input
               type="password"
               name="password"
@@ -103,7 +120,7 @@ const UserRegister = () => {
           </div>
 
           <div className="mb-3">
-            <label className="form-label">Confirm Password</label>
+            <label className="form-label small fw-bold text-secondary">Confirm Password</label>
             <input
               type="password"
               name="confirm_password"
@@ -115,42 +132,42 @@ const UserRegister = () => {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-100">
-            Register
+          <button 
+            type="submit" 
+            className="btn btn-primary w-100 py-2 shadow-sm"
+            disabled={loading} // Disable button while loading
+          >
+            {loading ? (
+              <span className="spinner-border spinner-border-sm me-2"></span>
+            ) : null}
+            {loading ? "Registering..." : "Register"}
           </button>
         </form>
 
         <div className="mt-3 text-center">
-          <small>
-            Already have an account? <a href="/login">Login here</a>
+          <small className="text-muted">
+            Already have an account?{" "}
+            <span 
+              className="text-primary fw-bold" 
+              style={{ cursor: "pointer" }}
+              onClick={() => navigate("/login")}
+            >
+              Login here
+            </span>
           </small>
         </div>
 
         <div className="d-flex align-items-center my-3">
           <hr className="flex-grow-1" />
-          <span className="px-2 text-muted">OR</span>
+          <span className="px-2 text-muted small">OR</span>
           <hr className="flex-grow-1" />
         </div>
 
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="w-100 d-flex align-items-center justify-content-center"
-          style={{
-            padding: "10px",
-            backgroundColor: "#fff",
-            border: "1px solid #dadce0",
-            borderRadius: "6px",
-            fontWeight: "500",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-          }}
-          onMouseOver={(e) =>
-            (e.currentTarget.style.backgroundColor = "#f7f7f7")
-          }
-          onMouseOut={(e) =>
-            (e.currentTarget.style.backgroundColor = "#fff")
-          }
+          className="btn btn-outline-dark w-100 d-flex align-items-center justify-content-center py-2"
+          style={{ borderRadius: "6px", fontWeight: "500" }}
         >
           <FcGoogle size={22} style={{ marginRight: "10px" }} />
           Continue with Google

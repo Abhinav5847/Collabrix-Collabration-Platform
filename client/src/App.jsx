@@ -3,16 +3,16 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import UserLogin from './pages/UserLogin';
-import UserRegister from './pages/UserRegister';
-import VerifyOTP from './pages/verifyOtp';
+import UserLogin from './pages/Accounts/UserLogin';
+import UserRegister from './pages/Accounts/UserRegister';
+import VerifyOTP from './pages/Accounts/verifyOtp';
 import './App.css'
-import GoogleCallback from './pages/GoogleCallback';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import EnableMFA from './pages/EnableMFA';
-import VerifyMFA from './pages/VerifyMFA';
+import GoogleCallback from './pages/Accounts/GoogleCallback';
+import ForgotPassword from './pages/Accounts/ForgotPassword';
+import ResetPassword from './pages/Accounts/ResetPassword';
+import Dashboard from './pages/Accounts/Dashboard';
+import EnableMFA from './pages/Accounts/EnableMFA';
+import VerifyMFA from './pages/Accounts/VerifyMFA';
 import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
 import WorkspaceDetail from './pages/Workspace/WorkspaceDetail';
 import CreateWorkspace from './pages/Workspace/CreateWorkspace';
