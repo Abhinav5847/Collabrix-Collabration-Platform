@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from django.core.asgi import get_asgi_application
+from channels.security.websocket import AllowedHostsOriginValidator
 
 # 1. Ensure the path is set so it matches settings.py
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,9 +21,20 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from workspaces.middleware import JWTAuthMiddleware
 from workspaces.routing import websocket_urlpatterns
 
+
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
-        "websocket": JWTAuthMiddleware(URLRouter(websocket_urlpatterns)),
+        "websocket": AllowedHostsOriginValidator(  
+            JWTAuthMiddleware(
+                URLRouter(websocket_urlpatterns)
+            )
+        ),
     }
 )
+# application = ProtocolTypeRouter(
+#     {
+#         "http": django_asgi_app,
+#         "websocket": JWTAuthMiddleware(URLRouter(websocket_urlpatterns)),
+#     }
+# )

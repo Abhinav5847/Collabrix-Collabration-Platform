@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import WorkSpace, WorkspaceMember
-from .serializers import WorkspaceMemberSerializer, WorkspaceSerializer
+from .models import WorkSpace, WorkspaceMember,WorkspaceMessage
+from .serializers import WorkspaceMemberSerializer, WorkspaceSerializer,WorkspaceMessageSerializer
 
 
 class WorkspaceListCreateView(APIView):
@@ -220,4 +220,24 @@ class MembersDetailView(APIView):
             return Response(
                 {"error": "Failed to remove member", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+class WorkspaceChatHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = WorkspaceMessageSerializer
+
+    def get(self, request, pk):
+        try:
+
+            workspace = get_object_or_404(WorkSpace, pk=pk, members__user=request.user)
+            
+            messages = WorkspaceMessage.objects.filter(workspace=workspace).order_by("timestamp")
+            serializer = self.serializer_class(messages, many=True)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": "Chat history not found or access denied", "details": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
             )

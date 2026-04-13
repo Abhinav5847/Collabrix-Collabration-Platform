@@ -406,3 +406,30 @@ class ResetPassView(APIView):
             return Response(
                 {"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, pk):
+        try:
+            if str(request.user.pk) != str(pk):
+                return Response(
+                    {"error": "Permission denied"}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            user = User.objects.get(pk=pk)
+            return Response({
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )

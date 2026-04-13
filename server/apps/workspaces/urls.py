@@ -5,6 +5,7 @@ from .views import (
     MembersListCreateview,
     WorkspaceDetailView,
     WorkspaceListCreateView,
+    WorkspaceChatHistoryView
 )
 
 urlpatterns = [
@@ -20,4 +21,5 @@ urlpatterns = [
         MembersDetailView.as_view(),
         name="workspace-member-detail",
     ),
+    path('<int:pk>/messages/', WorkspaceChatHistoryView.as_view(), name='workspace-chat-history'),
 ]

@@ -1,4 +1,3 @@
-// src/pages/WorkspaceDetail.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -533,9 +532,7 @@ function SettingsTab({ workspace, setWorkspace, navigate, workspaceId }) {
     );
 }
 
-/* ════════════════════════════════════════
-   SHARED SUB-COMPONENTS
-════════════════════════════════════════ */
+
 function RoleBadge({ role }) {
     const s = ROLE_META[role] || ROLE_META['VIEWER'];
     return (

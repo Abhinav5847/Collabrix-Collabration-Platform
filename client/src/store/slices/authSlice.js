@@ -1,16 +1,36 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
 
+
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (userData, { rejectWithValue }) => {
     try {
       const response = await api.post('/accounts/login/', userData);
+      
       localStorage.setItem('access', response.data.access);
       localStorage.setItem('refresh', response.data.refresh);
+      
+      const userId = response.data.user?.id || response.data.id;
+      if (userId) {
+        localStorage.setItem('userId', userId);
+      }
+      
       return response.data; 
     } catch (err) {
       return rejectWithValue(err.response?.data || "Login failed");
+    }
+  }
+);
+
+export const fetchUserProfile = createAsyncThunk(
+  'auth/fetchUserProfile',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/accounts/user/${userId}/`);
+      return response.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Failed to load user profile");
     }
   }
 );
@@ -96,15 +116,17 @@ export const verifyMfa = createAsyncThunk(
       const response = await api.post("/accounts/verify_mfa/", { code });
       return response.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Verification failed");
+      return rejectWithValue(err.response?.data || "MFA Verification failed");
     }
   }
 );
 
+// --- Slice ---
+
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: null,
+    user: null, 
     token: localStorage.getItem('access'),
     loading: false,
     error: null,
@@ -112,8 +134,7 @@ const authSlice = createSlice({
   },
   reducers: {
     logout: (state) => {
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
+      localStorage.clear(); 
       state.user = null;
       state.token = null;
       state.error = null;
@@ -125,7 +146,7 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login Handlers
+      // Login
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -133,89 +154,52 @@ const authSlice = createSlice({
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
         state.token = action.payload.access;
-        state.user = action.payload.user;
+        state.user = action.payload.user || null;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      
-      // Register Handlers
-      .addCase(registerUser.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(registerUser.fulfilled, (state) => {
-        state.loading = false;
-        state.error = null;
-      })
-      .addCase(registerUser.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-        
-    //   otp verify
-      .addCase(verifyOtp.pending, (state) => { state.loading = true; })
-      .addCase(verifyOtp.fulfilled, (state) => { state.loading = false; })
-      .addCase(verifyOtp.rejected, (state, action) => { 
-      state.loading = false; 
-      state.error = action.payload; 
-      })
-      .addCase(resendOtp.pending, (state) => { state.loading = true; })
-      .addCase(resendOtp.fulfilled, (state) => { state.loading = false; })
-      .addCase(resendOtp.rejected, (state) => { state.loading = false; })
 
-      // Forgot Password Handlers
-      .addCase(forgotPassword.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(forgotPassword.fulfilled, (state) => {
+      .addCase(fetchUserProfile.fulfilled, (state, action) => {
         state.loading = false;
-      })
-      .addCase(forgotPassword.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.user = action.payload;
       })
 
-      // Reset Password Handlers
-      .addCase(resetPassword.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(resetPassword.fulfilled, (state) => {
-        state.loading = false;
-      })
-      .addCase(resetPassword.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-
-      // MFA QR Handlers
       .addCase(fetchMfaQr.pending, (state) => {
         state.loading = true;
+        state.qrImage = null; 
       })
       .addCase(fetchMfaQr.fulfilled, (state, action) => {
         state.loading = false;
-        state.qrImage = action.payload;
+        state.qrImage = action.payload; 
       })
       .addCase(fetchMfaQr.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
 
-      .addCase(verifyMfa.pending, (state) => {
-       state.loading = true;
-       state.error = null;
-       })
-       .addCase(verifyMfa.fulfilled, (state) => {
-         state.loading = false;
-    // You could set state.user.mfa_enabled = true here if needed
-         })
-       .addCase(verifyMfa.rejected, (state, action) => {
-       state.loading = false;
-       state.error = action.payload;
-       });
+      // MFA 
+      .addCase(verifyMfa.fulfilled, (state) => {
+        state.loading = false;
+        state.qrImage = null;
+      })
+      
+      .addMatcher(
+        (action) => action.type.endsWith('/pending') && !action.type.includes('fetchMfaQr'),
+        (state) => { state.loading = true; state.error = null; }
+      )
+      .addMatcher(
+        (action) => action.type.endsWith('/fulfilled') && !action.type.includes('loginUser') && !action.type.includes('fetchMfaQr'),
+        (state) => { state.loading = false; }
+      )
+      .addMatcher(
+        (action) => action.type.endsWith('/rejected'),
+        (state, action) => {
+          state.loading = false;
+          state.error = action.payload;
+        }
+      );
   },
 });
 

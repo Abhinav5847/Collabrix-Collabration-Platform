@@ -1,35 +1,51 @@
-// src/components/WorkspaceLayout.jsx
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import {
-    LayoutDashboard, Shield, Bell, ChevronRight, LogOut,
-    User, Settings, Plus, ChevronsLeft, Building2, CircleUserRound
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+    LayoutDashboard, Shield, Bell, ChevronRight, LogOut, 
+    User, Settings, Plus, ChevronsLeft, Building2, CircleUserRound 
 } from 'lucide-react';
 import { api } from '../../services/api';
+// import { fetchUserProfile, logout } from '../../redux/authSlice'; // Adjust path if needed
+import { fetchUserProfile,logout } from '../../store/slices/authSlice';
+import { jwtDecode } from 'jwt-decode';
 
 export default function WorkspaceLayout() {
     const [workspaces, setWorkspaces] = useState([]);
-    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    
     const navigate = useNavigate();
     const location = useLocation();
+    const dispatch = useDispatch();
+
+    // Get user and token from Redux
+    const { user, token } = useSelector((state) => state.auth);
 
     useEffect(() => {
-        const token = localStorage.getItem('access');
-        if (!token) { navigate('/login'); return; }
+        const accessToken = localStorage.getItem('access') || token;
+        
+        if (!accessToken) {
+            navigate('/login');
+            return;
+        }
 
         const fetchInitialData = async () => {
             try {
-                const [wsRes, userRes] = await Promise.all([
-                    api.get('workspaces/'),
-                    api.get('accounts/user/')
-                ]);
+                // Fetch workspaces locally as they are layout-specific
+                const wsRes = await api.get('workspaces/');
                 setWorkspaces(wsRes.data);
-                setUser(userRes.data);
+
+                // Fetch User Profile via Redux if not already loaded
+                if (!user) {
+                    const decoded = jwtDecode(accessToken);
+                    const userId = decoded.user_id || decoded.id;
+                    // This uses your fixed thunk: /accounts/user/${userId}/
+                    dispatch(fetchUserProfile(userId));
+                }
             } catch (err) {
                 if (err.response?.status === 401) {
-                    localStorage.removeItem('access');
+                    dispatch(logout());
                     navigate('/login');
                 }
             } finally {
@@ -38,10 +54,10 @@ export default function WorkspaceLayout() {
         };
 
         fetchInitialData();
-    }, [navigate]);
+    }, [navigate, dispatch, user, token]);
 
     const handleLogout = () => {
-        localStorage.removeItem('access');
+        dispatch(logout());
         navigate('/login');
     };
 
@@ -70,7 +86,7 @@ export default function WorkspaceLayout() {
                 animation: 'spin 0.75s linear infinite'
             }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            <span style={{ color: '#6c757d', fontSize: '13px', fontWeight: 500 }}>Loading workspace…</span>
+            <span style={{ color: '#6c757d', fontSize: '13px', fontWeight: 500 }}>Loading Collabrix…</span>
         </div>
     );
 
@@ -88,7 +104,6 @@ export default function WorkspaceLayout() {
                 borderRight: '1px solid #1e293b',
                 zIndex: 100
             }}>
-                {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', marginBottom: '8px' }}>
                     <div style={{
                         width: '40px', height: '40px',
@@ -101,10 +116,8 @@ export default function WorkspaceLayout() {
                     }}>CX</div>
                 </Link>
 
-                {/* Divider */}
                 <div style={{ width: '28px', height: '1px', background: '#1e293b', margin: '4px 0' }} />
 
-                {/* Workspace Icons */}
                 <div style={{ flex: 1, overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '0 10px' }}>
                     {workspaces.map(ws => {
                         const active = location.pathname.startsWith(`/workspace/${ws.id}`);
@@ -139,7 +152,6 @@ export default function WorkspaceLayout() {
                         );
                     })}
 
-                    {/* Add Workspace */}
                     <Link
                         to="/workspace/create"
                         title="New Workspace"
@@ -153,14 +165,11 @@ export default function WorkspaceLayout() {
                             textDecoration: 'none',
                             transition: 'all 0.15s ease'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#60a5fa'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#475569'; }}
                     >
                         <Plus size={16} />
                     </Link>
                 </div>
 
-                {/* Bottom: User Avatar */}
                 <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
                     <div
                         title={user?.username}
@@ -176,7 +185,7 @@ export default function WorkspaceLayout() {
                 </div>
             </aside>
 
-
+            {/* ── SECONDARY SIDEBAR ── */}
             <nav style={{
                 width: sidebarCollapsed ? '0px' : '240px',
                 minWidth: sidebarCollapsed ? '0px' : '240px',
@@ -202,7 +211,6 @@ export default function WorkspaceLayout() {
                     </div>
 
                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
-
                         <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 8px 8px', padding: 0 }}>Main</p>
                         <NavItem to="/" icon={<LayoutDashboard size={16} />} label="Dashboard" active={isActive('/')} />
 
@@ -222,8 +230,6 @@ export default function WorkspaceLayout() {
                                     cursor: 'pointer', transition: 'background 0.15s',
                                     background: '#f8fafc'
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
-                                onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
                             >
                                 <div style={{
                                     width: '32px', height: '32px', borderRadius: '8px',
@@ -264,9 +270,8 @@ export default function WorkspaceLayout() {
                 </div>
             </nav>
 
-
+            {/* ── MAIN CONTENT AREA ── */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-
                 <header style={{
                     height: '60px', minHeight: '60px',
                     background: '#ffffff',
@@ -276,7 +281,6 @@ export default function WorkspaceLayout() {
                     gap: '16px'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-
                         <button
                             onClick={() => setSidebarCollapsed(p => !p)}
                             style={{
@@ -286,7 +290,6 @@ export default function WorkspaceLayout() {
                                 cursor: 'pointer', color: '#64748b',
                                 transition: 'all 0.15s'
                             }}
-                            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                         >
                             <ChevronsLeft size={16} style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                         </button>
@@ -348,7 +351,6 @@ export default function WorkspaceLayout() {
     );
 }
 
-/* ── Reusable NavItem ── */
 function NavItem({ to, icon, label, active }) {
     return (
         <Link
@@ -362,8 +364,6 @@ function NavItem({ to, icon, label, active }) {
                 marginBottom: '2px',
                 transition: 'all 0.15s ease'
             }}
-            onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#1e293b'; } }}
-            onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; } }}
         >
             <span style={{ color: active ? '#2563eb' : '#94a3b8', display: 'flex' }}>{icon}</span>
             {label}

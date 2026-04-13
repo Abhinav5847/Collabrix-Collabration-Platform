@@ -29,7 +29,6 @@ export default function Dashboard() {
     return (
         <div className="container-fluid px-3 px-md-4 py-4">
 
-            {/* Header */}
             <div className="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
                 <div>
                     <h5 className="fw-bold mb-1">Dashboard</h5>
@@ -39,8 +38,7 @@ export default function Dashboard() {
                     <Plus size={14} /> New Workspace
                 </Link>
             </div>
-
-            {/* Error */}
+\
             {error && (
                 <div className="alert alert-danger d-flex align-items-center gap-2 py-2 mb-4">
                     <AlertCircle size={15} />
@@ -51,7 +49,6 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Stats */}
             <div className="row g-3 mb-4">
                 {stats.map((s, i) => (
                     <div key={i} className="col-12 col-sm-4">
@@ -69,14 +66,12 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Section label */}
             <div className="d-flex align-items-center gap-2 mb-3">
                 <FolderOpen size={14} className="text-muted" />
                 <span className="text-uppercase fw-bold small text-secondary" style={{ letterSpacing: '.6px' }}>Your Workspaces</span>
                 <span className="badge bg-light text-secondary border">{workspaces.length}</span>
             </div>
 
-            {/* Workspace Grid */}
             {workspaces.length > 0 ? (
                 <div className="row g-3">
                     {workspaces.map(ws => (

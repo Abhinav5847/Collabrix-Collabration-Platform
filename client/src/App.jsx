@@ -16,6 +16,7 @@ import VerifyMFA from './pages/Accounts/VerifyMFA';
 import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
 import WorkspaceDetail from './pages/Workspace/WorkspaceDetail';
 import CreateWorkspace from './pages/Workspace/CreateWorkspace';
+import WorkspaceChat from './pages/Workspace/WorkSpaceChat';
 
 
 function App() {
@@ -28,7 +29,6 @@ function App() {
 
      <Router>
       <Routes>
-        {/* Auth Routes (No Navbar) */}
         <Route path="/register" element={<UserRegister/>} />
         <Route path="/login" element={<UserLogin/>} />
         <Route path="/verify-otp" element={<VerifyOTP/>} />
@@ -42,6 +42,7 @@ function App() {
           <Route path="/workspace/create" element={<CreateWorkspace/>} />
           <Route path="/enable_Mfa" element={<EnableMFA/>} />
           <Route path="/verify_Mfa" element={<VerifyMFA/>} />
+          <Route path="/workspace/:workspaceId/chat" element={<WorkspaceChat/>} />
         </Route>
       </Routes>
     </Router>
