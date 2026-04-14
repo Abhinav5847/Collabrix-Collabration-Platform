@@ -38,7 +38,7 @@ export default function Dashboard() {
                     <Plus size={14} /> New Workspace
                 </Link>
             </div>
-\
+
             {error && (
                 <div className="alert alert-danger d-flex align-items-center gap-2 py-2 mb-4">
                     <AlertCircle size={15} />

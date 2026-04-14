@@ -16,6 +16,8 @@ class Document(models.Model):
     updated_at = models.DateField(auto_now=True)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    pdf_file = models.FileField(upload_to="documents/pdfs/", null=True, blank=True)
+    is_exporting = models.BooleanField(default=False)
 
     def soft_delete(self):
         self.is_deleted = True
