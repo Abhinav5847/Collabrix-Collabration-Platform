@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .views import DocumentDetailView, DocumentListCreateView, DocumentTrashView,DocumentPDFExportView
+from .views import (
+    DocumentDetailView,
+    DocumentListCreateView,
+    DocumentPDFExportView,
+    DocumentTrashView,
+)
 
 urlpatterns = [
     path(
@@ -24,5 +29,9 @@ urlpatterns = [
         DocumentTrashView.as_view(),
         name="document-permanent-delete",
     ),
-    path('<int:pk>/export-pdf/', DocumentPDFExportView.as_view(), name='document-pdf-export'),
+    path(
+        "<int:pk>/export-pdf/",
+        DocumentPDFExportView.as_view(),
+        name="document-pdf-export",
+    ),
 ]

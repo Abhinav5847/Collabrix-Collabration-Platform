@@ -15,4 +15,4 @@ def permanent_delete_old_trash():
     count = old_docs.count()
     old_docs.delete()
 
-    return f"Janitor: Permanently removed {count} old documents from trash."
+    return f"Permanently removed {count} old documents from trash."

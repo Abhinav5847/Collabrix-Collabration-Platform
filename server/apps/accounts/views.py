@@ -3,7 +3,6 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import ValidationError, validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.http import HttpResponse
-from django.shortcuts import render
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import status
@@ -75,7 +74,7 @@ class RegisterView(APIView):
 
         except Exception as e:
             return Response(
-                {"error": "Something went wrong"},
+                {"error": "Something went wrong,{e}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -407,6 +406,7 @@ class ResetPassView(APIView):
                 {"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST
             )
 
+
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -415,21 +415,22 @@ class UserProfileView(APIView):
         try:
             if str(request.user.pk) != str(pk):
                 return Response(
-                    {"error": "Permission denied"}, 
-                    status=status.HTTP_403_FORBIDDEN
+                    {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
                 )
-            
+
             user = User.objects.get(pk=pk)
-            return Response({
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-            }, status=status.HTTP_200_OK)
-            
+            return Response(
+                {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         except User.DoesNotExist:
             return Response(
-                {"error": "User not found"}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
             )

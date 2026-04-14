@@ -1,11 +1,12 @@
 from django.http import Http404
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
 
 from apps.workspaces.models import WorkspaceMember
+
 from .models import Document
 from .serializers import DocumentSerializer
 
@@ -77,7 +78,11 @@ class DocumentDetailView(APIView):
         if not document:
             return Response(
                 {"error": error},
-                status=(status.HTTP_404_NOT_FOUND if "found" in error else status.HTTP_403_FORBIDDEN),
+                status=(
+                    status.HTTP_404_NOT_FOUND
+                    if "found" in error
+                    else status.HTTP_403_FORBIDDEN
+                ),
             )
 
         serializer = self.serializer_class(document)
@@ -191,7 +196,7 @@ class DocumentTrashView(APIView):
             )
         except WorkspaceMember.DoesNotExist:
             return Response(
-                {"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN  
+                {"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN
             )
 
 
@@ -200,20 +205,21 @@ class DocumentPDFExportView(APIView):
 
     def post(self, request, pk):
         document = get_object_or_404(Document, pk=pk)
-        
+
         if document.is_exporting:
             return Response(
-                {"detail": "An export is already in progress."}, 
-                status=status.HTTP_409_CONFLICT
+                {"detail": "An export is already in progress."},
+                status=status.HTTP_409_CONFLICT,
             )
-        
+
         document.is_exporting = True
         document.save()
-        
+
         from .tasks import generate_document_pdf
+
         generate_document_pdf.delay(document.id)
-        
+
         return Response(
-            {"detail": "PDF generation has started in the background."}, 
-            status=status.HTTP_202_ACCEPTED
+            {"detail": "PDF generation has started in the background."},
+            status=status.HTTP_202_ACCEPTED,
         )

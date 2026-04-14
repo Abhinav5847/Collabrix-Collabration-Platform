@@ -3,9 +3,9 @@ from django.urls import path
 from .views import (
     MembersDetailView,
     MembersListCreateview,
+    WorkspaceChatHistoryView,
     WorkspaceDetailView,
     WorkspaceListCreateView,
-    WorkspaceChatHistoryView
 )
 
 urlpatterns = [
@@ -21,5 +21,9 @@ urlpatterns = [
         MembersDetailView.as_view(),
         name="workspace-member-detail",
     ),
-    path('<int:pk>/messages/', WorkspaceChatHistoryView.as_view(), name='workspace-chat-history'),
+    path(
+        "<int:pk>/messages/",
+        WorkspaceChatHistoryView.as_view(),
+        name="workspace-chat-history",
+    ),
 ]

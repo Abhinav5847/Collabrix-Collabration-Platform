@@ -5,8 +5,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import WorkSpace, WorkspaceMember,WorkspaceMessage
-from .serializers import WorkspaceMemberSerializer, WorkspaceSerializer,WorkspaceMessageSerializer
+from .models import WorkSpace, WorkspaceMember, WorkspaceMessage
+from .serializers import (
+    WorkspaceMemberSerializer,
+    WorkspaceMessageSerializer,
+    WorkspaceSerializer,
+)
 
 
 class WorkspaceListCreateView(APIView):
@@ -222,6 +226,7 @@ class MembersDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
 class WorkspaceChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = WorkspaceMessageSerializer
@@ -230,10 +235,12 @@ class WorkspaceChatHistoryView(APIView):
         try:
 
             workspace = get_object_or_404(WorkSpace, pk=pk, members__user=request.user)
-            
-            messages = WorkspaceMessage.objects.filter(workspace=workspace).order_by("timestamp")
+
+            messages = WorkspaceMessage.objects.filter(workspace=workspace).order_by(
+                "timestamp"
+            )
             serializer = self.serializer_class(messages, many=True)
-            
+
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:

@@ -3,7 +3,7 @@ from django.utils.text import slugify
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import WorkSpace, WorkspaceMember,WorkspaceMessage
+from .models import WorkSpace, WorkspaceMember, WorkspaceMessage
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):
@@ -59,6 +59,7 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
                 "Cannot manually assign OWNER role. Only the creator is the owner."
             )
         return value
+
 
 class WorkspaceMessageSerializer(serializers.ModelSerializer):
     sender = serializers.ReadOnlyField(source="user.email")
