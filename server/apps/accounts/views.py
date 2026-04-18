@@ -434,3 +434,14 @@ class UserProfileView(APIView):
             return Response(
                 {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
             )
+
+class SaveFCMTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self,request):
+        token = request.data.get('token')
+        if token:
+            request.user.fcm_token = token
+            request.user.save()
+            return Response({"status": "Token saved successfully"}, status=status.HTTP_200_OK)
+        return Response({"error": "No token provided"}, status=status.HTTP_400_BAD_REQUEST)

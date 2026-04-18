@@ -11,7 +11,7 @@ from django.utils import timezone
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     is_verified = models.BooleanField(default=False)
-
+    fcm_token = models.TextField(null=True, blank=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 

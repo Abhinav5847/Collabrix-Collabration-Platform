@@ -1,10 +1,13 @@
 import logging
 import re
-
+import json
+import boto3
+from django.conf import settings
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from apps.notifications.models import Notification
 from apps.workspaces.models import WorkSpace
@@ -12,32 +15,31 @@ from apps.workspaces.models import WorkSpace
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-
+# Initialize SQS Client
+sqs_client = boto3.client(
+    'sqs',
+    region_name=settings.AWS_REGION,
+    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+)
 @shared_task
 def process_chat_mention_task(message_content, sender_id, workspace_id):
-    usernames = re.findall(r"@(\w+)", message_content)
+    print("starting")
 
+    usernames = list(set(re.findall(r"@(\w+)", message_content)))
     if not usernames:
-        return "No mentions found in message."
+        return "No mentions found."
 
     try:
         sender = User.objects.get(id=sender_id)
         workspace = WorkSpace.objects.get(id=workspace_id)
 
-        valid_users = []
-        for name in usernames:
-            matched_user = User.objects.filter(username__iexact=name).first()
+        valid_users = User.objects.filter(
+            username__in=usernames
+        ).exclude(id=sender.id).distinct()
 
-            if matched_user:
-                if matched_user.id != sender.id:
-                    valid_users.append(matched_user)
-                else:
-                    logger.info(f"Skipping self-mention for {sender.username}")
-            else:
-                logger.warning(f"User @{name} not found in database.")
-
-        if not valid_users:
-            return f"Mentions found ({usernames}), but no matching users exist in DB."
+        if not valid_users.exists():
+            return "No valid users to notify."
 
         notifications_to_create = [
             Notification(
@@ -48,15 +50,20 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
             )
             for user in valid_users
         ]
-        created_notifications = Notification.objects.bulk_create(
-            notifications_to_create
-        )
+
+        created_notifications = Notification.objects.bulk_create(notifications_to_create)
 
         channel_layer = get_channel_layer()
+        sqs_entries = []
 
         for note in created_notifications:
-            group_name = f"user_notifications_{note.recipient.id}"
 
+            timestamp = note.created_at.isoformat() if note.created_at else timezone.now().isoformat()
+
+            # -------------------------
+            # WEBSOCKET
+            # -------------------------
+            group_name = f"user_notifications_{note.recipient.id}"
             async_to_sync(channel_layer.group_send)(
                 group_name,
                 {
@@ -65,17 +72,51 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
                         "id": note.id,
                         "message": note.message,
                         "sender": sender.username,
-                        "created_at": (
-                            note.created_at.isoformat() if note.created_at else None
-                        ),
+                        "created_at": timestamp,
                     },
                 },
             )
 
-        return f"Successfully processed {len(created_notifications)} mentions."
+            # -------------------------
+            # FCM TOKEN FROM USER MODEL
+            # -------------------------
+            fcm_token = note.recipient.fcm_token
 
-    except (User.DoesNotExist, WorkSpace.DoesNotExist) as e:
-        return f"Database error: {str(e)}"
+            if fcm_token:
+                print("givecode")
+
+                payload = {
+                    "token": fcm_token,
+                    "title": f"New Mention in {workspace.name}",
+                    "body": note.message,
+                    "data": {
+                        "workspace_id": str(workspace_id),
+                        "notification_id": str(note.id)
+                    }
+                }
+
+                sqs_entries.append({
+                    "Id": str(note.id),
+                    "MessageBody": json.dumps(payload)
+                })
+
+        # -------------------------
+        # SEND TO SQS
+        # -------------------------
+        if sqs_entries:
+            for i in range(0, len(sqs_entries), 10):
+                batch = sqs_entries[i:i + 10]
+
+                try:
+                    sqs_client.send_message_batch(
+                        QueueUrl=settings.AWS_SQS_QUEUE_URL,
+                        Entries=batch
+                    )
+                except Exception as sqs_err:
+                    logger.error(f"SQS Error: {sqs_err}")
+
+        return f"Processed {len(created_notifications)} mentions"
+
     except Exception as e:
-        logger.error(f"Unexpected error in mention task: {str(e)}")
-        return f"Unexpected error: {str(e)}"
+        logger.error(str(e))
+        return str(e)

@@ -215,3 +215,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=0, minute=0),
     },
 }
+
+
+import os
+
+# AWS Credentials
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_REGION = os.environ.get('AWS_REGION', 'eu-north-1')
+FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME', 'send_fcm_notification')
+AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
