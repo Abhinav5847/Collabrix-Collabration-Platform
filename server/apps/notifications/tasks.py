@@ -60,9 +60,8 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
 
             timestamp = note.created_at.isoformat() if note.created_at else timezone.now().isoformat()
 
-            # -------------------------
             # WEBSOCKET
-            # -------------------------
+         
             group_name = f"user_notifications_{note.recipient.id}"
             async_to_sync(channel_layer.group_send)(
                 group_name,
@@ -80,13 +79,13 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
             # -------------------------
             # FCM TOKEN FROM USER MODEL
             # -------------------------
-            fcm_token = note.recipient.fcm_token
+            token = note.recipient.fcm_token
 
-            if fcm_token:
+            if token:
                 print("givecode")
 
                 payload = {
-                    "token": fcm_token,
+                    "token": token,
                     "title": f"New Mention in {workspace.name}",
                     "body": note.message,
                     "data": {

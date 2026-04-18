@@ -1,26 +1,29 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux'; // Added
 import { Building2, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { api } from '../../services/api';
+import { createWorkspace } from '../../store/slices/workspaceSlice';
 
 export default function CreateWorkspace() {
     const [formData, setFormData] = useState({ name: '', description: '' });
-    const [status, setStatus] = useState('idle'); 
-    const [errorMsg, setErrorMsg] = useState('');
+    
+    // REDUX HOOKS
+    const dispatch = useDispatch();
+    const { loading, error: errorMsg } = useSelector((state) => state.workspaces);
+    const status = loading ? 'loading' : errorMsg ? 'error' : 'idle';
+
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setStatus('loading');
-        setErrorMsg('');
-        try {
-            const res = await api.post('workspaces/', formData);
-            setStatus('idle');
-            navigate(`/workspace/${res.data.id}`);
+        
+        // Dispatch the action
+        const resultAction = await dispatch(createWorkspace(formData));
+        
+        // If successful, proceed with your original navigation and reload
+        if (createWorkspace.fulfilled.match(resultAction)) {
+            navigate(`/workspace/${resultAction.payload.id}`);
             window.location.reload();
-        } catch (err) {
-            setErrorMsg(err.response?.data?.name || 'Something went wrong. Please try again.');
-            setStatus('error');
         }
     };
 
@@ -73,7 +76,7 @@ export default function CreateWorkspace() {
                     </div>
                 </div>
 
-   
+
                 <div style={{ padding: '28px' }}>
                     {status === 'error' && (
                         <div style={{

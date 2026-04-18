@@ -37,7 +37,7 @@ const WorkspaceChat = () => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // 3. WebSocket Connection
+  // WebSocket Connection
   useEffect(() => {
     if (!workspaceId || !token) return;
 
