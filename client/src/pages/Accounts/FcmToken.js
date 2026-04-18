@@ -1,6 +1,7 @@
 // getToken.js
 import { getToken } from "firebase/messaging";
 import { messaging } from "./firebase";
+import { api } from "../../services/api";
 
 export async function registerFCMToken() {
   try {
@@ -25,15 +26,8 @@ export async function registerFCMToken() {
     console.log("FCM Token:", token);
 
     // Send to your Django backend
-    await fetch("/api/save-fcm-token/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer YOUR_ACCESS_TOKEN", // if using JWT
-      },
-      body: JSON.stringify({
+    await api.post("/accounts/update-fcm-token/", {
         token: token,   // ✅ matches backend now
-      }),
     });
 
     console.log("Token saved to backend");

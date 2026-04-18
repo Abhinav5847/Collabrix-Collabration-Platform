@@ -11,9 +11,9 @@ firebase.initializeApp({
   measurementId: "G-LYB0NLV2DN"
 });
 
-console.log("oomb")
+console.log("working firebase")
 const messaging = firebase.messaging();
-console.log("oomb")
+console.log("working firebase")
 messaging.onBackgroundMessage(function (payload) {
   console.log("Background message:", payload);
 
