@@ -6,9 +6,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.workspaces.models import WorkspaceMember
-
 from .models import Document
 from .serializers import DocumentSerializer
+
+
+from .tasks import generate_document_pdf, sync_document_to_qdrant
 
 
 class DocumentListCreateView(APIView):
@@ -48,7 +50,11 @@ class DocumentListCreateView(APIView):
 
             serializer = self.serializer_class(data=request.data)
             if serializer.is_valid():
-                serializer.save(workspace_id=workspace_id, creator=request.user)
+     
+                document = serializer.save(workspace_id=workspace_id, creator=request.user)
+                
+                sync_document_to_qdrant.delay(document.id)
+                
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except WorkspaceMember.DoesNotExist:
@@ -104,7 +110,10 @@ class DocumentDetailView(APIView):
 
         serializer = self.serializer_class(document, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
+            updated_doc = serializer.save()
+            
+            sync_document_to_qdrant.delay(updated_doc.id)
+            
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -144,6 +153,7 @@ class DocumentTrashView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, pk):
+        """Restores a document from trash."""
         try:
             document = Document.objects.get(pk=pk, is_deleted=True)
             member = WorkspaceMember.objects.get(
@@ -158,6 +168,10 @@ class DocumentTrashView(APIView):
             document.is_deleted = False
             document.deleted_at = None
             document.save()
+            
+            # TRIGGER RAG SYNC: Re-index content so chatbot can see it again
+            sync_document_to_qdrant.delay(document.id)
+            
             return Response(
                 {"message": "Document restored successfully."},
                 status=status.HTTP_200_OK,
@@ -173,6 +187,7 @@ class DocumentTrashView(APIView):
             )
 
     def delete(self, request, pk):
+        """Permanently deletes a document."""
         try:
             document = Document.objects.get(pk=pk, is_deleted=True)
             member = WorkspaceMember.objects.get(
@@ -186,6 +201,7 @@ class DocumentTrashView(APIView):
                 )
 
             document.delete()
+            # Note: Hard delete should ideally trigger a task to remove points from Qdrant.
             return Response(
                 {"message": "Document permanently deleted."},
                 status=status.HTTP_204_NO_CONTENT,
@@ -215,8 +231,7 @@ class DocumentPDFExportView(APIView):
         document.is_exporting = True
         document.save()
 
-        from .tasks import generate_document_pdf
-
+        # Trigger PDF generation
         generate_document_pdf.delay(document.id)
 
         return Response(

@@ -225,3 +225,6 @@ AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.environ.get('AWS_REGION', 'eu-north-1')
 FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME', 'send_fcm_notification')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
+
+GROQ_API_KEY=os.environ.get('GROQ_API_KEYv')
+GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY')
