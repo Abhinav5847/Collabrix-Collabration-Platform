@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
-import { Plus, ArrowRight, LayoutGrid, Clock, Users, FolderOpen, RefreshCw, AlertCircle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
+import { Plus, ArrowRight, LayoutGrid, Clock, Users, FolderOpen, RefreshCw, AlertCircle, FileText } from 'lucide-react'; // Added FileText
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 
 const COLORS = ['#2563eb','#0891b2','#7c3aed','#059669','#dc2626','#d97706'];
@@ -9,6 +9,7 @@ const wsColor = (name) => COLORS[name.charCodeAt(0) % COLORS.length];
 
 export default function Dashboard() {
     const dispatch = useDispatch();
+    const navigate = useNavigate(); // Hook for programmatic navigation
     const { list: workspaces, loading, error } = useSelector((s) => s.workspaces);
 
     useEffect(() => { dispatch(fetchWorkspaces()); }, [dispatch]);
@@ -88,9 +89,19 @@ export default function Dashboard() {
                                     </div>
                                 </div>
                                 <div className="d-flex align-items-center justify-content-between mt-auto">
-                                    <small className="text-muted d-flex align-items-center gap-1">
-                                        <Users size={11} /> {ws.owner_name || 'Owner'}
-                                    </small>
+                                    <div className="d-flex gap-2">
+                                        {/* NEW: Button to go to the Document List we made */}
+                                        <button 
+                                            onClick={() => navigate(`/workspace/${ws.id}/documents`)}
+                                            className="btn btn-sm btn-light border d-flex align-items-center gap-1"
+                                        >
+                                            <FileText size={12} /> Docs
+                                        </button>
+                                        
+                                        <small className="text-muted d-flex align-items-center gap-1">
+                                            <Users size={11} /> {ws.owner_name || 'Owner'}
+                                        </small>
+                                    </div>
                                     <Link to={`/workspace/${ws.id}`} className="btn btn-outline-primary btn-sm d-flex align-items-center gap-1">
                                         Open <ArrowRight size={12} />
                                     </Link>

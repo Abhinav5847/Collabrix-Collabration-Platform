@@ -1,0 +1,163 @@
+import React, { useState, useEffect, useRef } from "react";
+
+const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const scrollRef = useRef(null);
+
+  // Auto scroll to bottom when messages update
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const sendMessageToBackend = async (payload) => {
+    // Note: We use port 80 (default) because Nginx handles the /ai/ prefix
+    const res = await fetch("http://localhost:8001/ai/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Error ${res.status}: ${res.statusText}`);
+    }
+
+    return res.json();
+  };
+
+  const sendMessage = async (e) => {
+    e?.preventDefault();
+
+    const userMsg = input.trim();
+    if (!userMsg || isLoading) return;
+
+    setInput("");
+
+    const newUserMessage = {
+      role: "user",
+      content: userMsg,
+    };
+
+    // Update UI immediately with user message
+    setMessages((prev) => [...prev, newUserMessage]);
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        message: userMsg,
+        workspace_id: String(workspaceId), // Ensure strings for the backend
+        doc_id: String(docId),
+        history: messages.map(msg => ({
+          role: msg.role === "ai" ? "assistant" : msg.role, // Map 'ai' to 'assistant' for LLM
+          content: msg.content
+        })),
+      };
+
+      const data = await sendMessageToBackend(payload);
+
+      const aiMessage = {
+        role: "ai",
+        content: data?.response || "I processed the document but have no response.",
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          content: `⚠️ ${err.message}`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      sendMessage(e);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "sans-serif", background: "#f5f4f0" }}>
+      {/* HEADER */}
+      <div style={{ background: "#1a1a1a", padding: "14px 20px", display: "flex", alignItems: "center", color: "#fff" }}>
+        <div style={{ fontWeight: "bold" }}>Collabrix AI Chat</div>
+        <div style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
+          Workspace: {workspaceId} | Doc: {docId}
+        </div>
+      </div>
+
+      {/* MESSAGES */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+        {messages.length === 0 && (
+          <div style={{ margin: "auto", color: "#888", textAlign: "center", maxWidth: "250px" }}>
+            Ask anything about this document. The AI has access to the current content.
+          </div>
+        )}
+
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+                maxWidth: "75%",
+                padding: "10px 14px",
+                borderRadius: "15px",
+                borderBottomRightRadius: msg.role === "user" ? "2px" : "15px",
+                borderBottomLeftRadius: msg.role === "ai" ? "2px" : "15px",
+                background: msg.role === "user" ? "#007AFF" : "#fff",
+                color: msg.role === "user" ? "#fff" : "#000",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                fontSize: "14px",
+                lineHeight: "1.5"
+              }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#777", fontSize: "13px" }}>
+            <div className="dot-typing"></div> Thinking...
+          </div>
+        )}
+      </div>
+
+      {/* INPUT AREA */}
+      <div style={{ padding: "16px", borderTop: "1px solid #ddd", background: "#fff", display: "flex", gap: 10 }}>
+        <input
+          style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", outline: "none" }}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Ask about requirements, summaries..."
+        />
+        <button
+          onClick={sendMessage}
+          disabled={isLoading || !input.trim()}
+          style={{
+            padding: "0 20px",
+            background: isLoading || !input.trim() ? "#ccc" : "#000",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold"
+          }}
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default CollabrixChat;

@@ -17,6 +17,10 @@ import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
 import WorkspaceDetail from './pages/Workspace/WorkspaceDetail';
 import CreateWorkspace from './pages/Workspace/CreateWorkspace';
 import WorkspaceChat from './pages/Workspace/WorkSpaceChat';
+import CollabrixChat from './pages/ai/aiChatBot';
+import DocumentList from './pages/docs/DocsDashboard';
+import DocumentDetail from './pages/docs/DocsDetails';
+import TrashManager from './pages/docs/DocsTrash';
 
 
 function App() {
@@ -43,6 +47,20 @@ function App() {
           <Route path="/enable_Mfa" element={<EnableMFA/>} />
           <Route path="/verify_Mfa" element={<VerifyMFA/>} />
           <Route path="/workspace/:workspaceId/chat" element={<WorkspaceChat/>} />
+          <Route path="/chatbot" element={<CollabrixChat/>} />
+          <Route 
+          path="/workspace/:workspaceId/documents" 
+          element={<DocumentList/>} 
+        />
+        <Route 
+          path="/documents/:pk" 
+          element={<DocumentDetail/>} 
+        />
+
+        <Route 
+          path="/workspace/:workspaceId/trash" 
+          element={<TrashManager/>} 
+        />
         </Route>
       </Routes>
     </Router>
