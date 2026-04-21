@@ -1,54 +1,78 @@
+from typing import TypedDict, List, Annotated
+from langgraph.graph import StateGraph, END
 from app.ai.llm import llm
 from app.vector.qdrant import search
 from fastapi.concurrency import run_in_threadpool
 
-async def run_rag(state):
-    """
-    RAG Pipeline:
-    1. Retrieve context specifically for the given doc_id.
-    2. Format history and context into a prompt.
-    3. Generate a response using Grok-4.
-    """
+# 1. Define the State (The data that flows through the graph)
+class AgentState(TypedDict):
+    message: str
+    workspace_id: str
+    doc_id: str
+    history: List[dict]
+    context: str
+    response: str
 
-    # 1. Get context from Qdrant 
-    # We pass doc_id now to ensure the AI only talks about THIS specific document.
-    context = await run_in_threadpool(
+# 2. Define the RAG Node
+async def retrieve_and_generate(state: AgentState):
+    """
+    Node that searches Qdrant and generates a response from Grok.
+    """
+    # Retrieve context from Qdrant
+    context_hits = await run_in_threadpool(
         search, 
         state["message"], 
         state["workspace_id"],
         state["doc_id"] 
     )
+    
+    context_text = "\n\n".join(context_hits) if context_hits else "No relevant context found."
 
-    context_text = "\n\n".join(context) if context else "No relevant context found."
-
-    # 2. Format Chat History into a readable string for the LLM
+    # Format History
     formatted_history = ""
     for entry in state.get('history', []):
         role = entry.get("role", "user").capitalize()
         content = entry.get("content", "")
         formatted_history += f"{role}: {content}\n"
 
-    # 3. Build the Grok-specific Prompt
+    # Build Prompt
     prompt = f"""
-You are a workspace assistant powered by Grok. Your goal is to answer questions about a specific document.
+    You are a workspace assistant. Answer based ONLY on the context.
+    
+    CONTEXT:
+    {context_text}
+    
+    HISTORY:
+    {formatted_history}
+    
+    QUESTION:
+    {state['message']}
+    """
 
-CONTEXT FROM THE DOCUMENT:
-{context_text}
-
-RECENT CHAT HISTORY:
-{formatted_history}
-
-USER REQUEST:
-{state['message']}
-
-INSTRUCTIONS:
-- Answer accurately based ONLY on the provided context.
-- If the answer isn't in the context, politely inform the user you don't have that information.
-- Keep your tone professional and helpful.
-"""
-
-    # 4. Call Grok (using the ASYNC 'ainvoke' method)
-    # This prevents the FastAPI server from hanging during the request.
+    # Invoke LLM
     response = await llm.ainvoke(prompt)
+    
+    # Return the updated state
+    return {"response": response.content, "context": context_text}
 
-    return response.content
+# 3. Build the Graph
+workflow = StateGraph(AgentState)
+
+# Add our single node
+workflow.add_node("agent", retrieve_and_generate)
+
+# Define the flow
+workflow.set_entry_point("agent")
+workflow.add_edge("agent", END)
+
+# 4. Compile the Graph
+app_rag = workflow.compile()
+
+# --- The Helper Function for your FastAPI Router ---
+async def run_rag(state_input: dict):
+    """
+    Entry point for the FastAPI router to interact with the graph.
+    """
+    # Execute the graph
+    result = await app_rag.ainvoke(state_input)
+    return result["response"]

@@ -33,17 +33,13 @@ def generate_document_pdf(document_id):
 
 @shared_task
 def sync_document_to_qdrant(document_id):
-    """
-    Sends document content to the AI service for vectorization.
-    """
+
     try:
         doc = Document.objects.get(id=document_id)
         
-        # Skip if there's no content to vectorize
         if not doc.content or doc.is_deleted:
             return "Skipping: Document empty or in trash."
 
-        # The internal Docker URL for your AI service
         ai_service_url = "http://ai_service:8001/ai/ingest"
 
         payload = {
