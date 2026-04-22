@@ -21,6 +21,7 @@ import CollabrixChat from './pages/ai/aiChatBot';
 import DocumentList from './pages/docs/DocsDashboard';
 import DocumentDetail from './pages/docs/DocsDetails';
 import TrashManager from './pages/docs/DocsTrash';
+import NotificationsPage from './pages/notification/NotificationList';
 
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
           <Route path="/verify_Mfa" element={<VerifyMFA/>} />
           <Route path="/workspace/:workspaceId/chat" element={<WorkspaceChat/>} />
           <Route path="/chatbot" element={<CollabrixChat/>} />
+          <Route path="notifications" element={<NotificationsPage/>} />
           <Route 
           path="/workspace/:workspaceId/documents" 
           element={<DocumentList/>} 
