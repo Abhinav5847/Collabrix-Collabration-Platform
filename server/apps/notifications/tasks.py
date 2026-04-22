@@ -15,7 +15,6 @@ from apps.workspaces.models import WorkSpace
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-# Initialize SQS Client
 sqs_client = boto3.client(
     'sqs',
     region_name=settings.AWS_REGION,
@@ -76,9 +75,7 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
                 },
             )
 
-            # -------------------------
             # FCM TOKEN FROM USER MODEL
-            # -------------------------
             token = note.recipient.fcm_token
 
             if token:
@@ -98,10 +95,8 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
                     "Id": str(note.id),
                     "MessageBody": json.dumps(payload)
                 })
-
-        # -------------------------
+                
         # SEND TO SQS
-        # -------------------------
         if sqs_entries:
             for i in range(0, len(sqs_entries), 10):
                 batch = sqs_entries[i:i + 10]

@@ -4,6 +4,8 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
+from .serializers import UserSelectSerializer
 
 from .models import WorkSpace, WorkspaceMember, WorkspaceMessage
 from .serializers import (
@@ -11,6 +13,8 @@ from .serializers import (
     WorkspaceMessageSerializer,
     WorkspaceSerializer,
 )
+
+User = get_user_model()
 
 
 class WorkspaceListCreateView(APIView):
@@ -136,6 +140,7 @@ class MembersListCreateview(APIView):
             serializer = self.serializer_class(data=request.data)
             serializer.is_valid(raise_exception=True)
 
+            # FIXED: 'user' matches the field name in the updated serializer
             user_to_add = serializer.validated_data["user"]
 
             if WorkspaceMember.objects.filter(
@@ -146,6 +151,7 @@ class MembersListCreateview(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # Inject the workspace from the URL into the save method
             serializer.save(workspace=workspace)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -233,7 +239,6 @@ class WorkspaceChatHistoryView(APIView):
 
     def get(self, request, pk):
         try:
-
             workspace = get_object_or_404(WorkSpace, pk=pk, members__user=request.user)
 
             messages = WorkspaceMessage.objects.filter(workspace=workspace).order_by(
@@ -247,4 +252,20 @@ class WorkspaceChatHistoryView(APIView):
             return Response(
                 {"error": "Chat history not found or access denied", "details": str(e)},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+class AllUsersListView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSelectSerializer
+
+    def get(self, request):
+        try:
+            users = User.objects.all().order_by('username')
+            serializer = self.serializer_class(users, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": "Failed to fetch user list", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

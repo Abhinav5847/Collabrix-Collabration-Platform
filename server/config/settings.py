@@ -54,14 +54,14 @@ INSTALLED_APPS = [
     "apps.docs",
     "apps.notifications",
     "rest_framework",
-    "corsheaders",
+    # "corsheaders",
     "drf_spectacular",
     "django_celery_results",
     "django_celery_beat",
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    # "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -161,7 +161,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "apps_accounts.User"
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
 
 AUTHENTICATION_BACKENDS = [
@@ -182,9 +182,9 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "10/day",        # Strict limit for unauthenticated
-        "user": "1000/hour",     # Standard limit for logged-in users
-        "ai_action": "5/minute", # For heavy tasks like Chat/Ingest
+        "anon": "10/day",        
+        "user": "1000/hour",     
+        "ai_action": "5/minute",
     },
 }
 

@@ -6,6 +6,7 @@ from .views import (
     WorkspaceChatHistoryView,
     WorkspaceDetailView,
     WorkspaceListCreateView,
+    AllUsersListView
 )
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
         WorkspaceChatHistoryView.as_view(),
         name="workspace-chat-history",
     ),
+    path('users/all/', AllUsersListView.as_view(), name='all-users-list'),
 ]
