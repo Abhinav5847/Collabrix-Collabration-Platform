@@ -3,21 +3,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router
 from app.vector.qdrant import init_collection
+from app.core.limiter import limiter
+# --- ADDED THESE IMPORTS ---
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+# ---------------------------
 import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting AI Service...")
+    print("Starting AI Service...")
     
     # 1. Initialize Qdrant
     try:
         init_collection()
         print("Qdrant collection initialized.")
     except Exception as e:
-        print(f"⚠️ Warning: Qdrant init failed: {e}")
+        print(f"Warning: Qdrant init failed: {e}")
 
     # 2. Initialize DynamoDB Table
-    # IMPORT INSIDE THE FUNCTION to avoid circular dependency errors
     try:
         from app.services.memory import dynamodb
         dynamodb.create_table(
@@ -32,21 +37,24 @@ async def lifespan(app: FastAPI):
             ],
             ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
         )
-        print("✅ DynamoDB table 'Collabrix_AiChat_History' created.")
+        print("DynamoDB table 'Collabrix_AiChat_History' created.")
     except Exception:
-        # If it already exists, this will fail silently, which is normal
-        print("ℹ️ DynamoDB table check complete (Already exists or Cloud).")
+        print("DynamoDB table check complete (Already exists or Cloud).")
     
     yield 
     
     print("Stopping AI Service...")
 
-# CRITICAL: Ensure 'app' is defined at the top level and not inside any 'if' block
 app = FastAPI(
     title="Collabrix AI Service",
     description="Backend service for RAG-based document chat",
     lifespan=lifespan
 )
+
+# Throttling setup
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

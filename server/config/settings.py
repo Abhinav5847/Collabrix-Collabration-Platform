@@ -95,6 +95,17 @@ ASGI_APPLICATION = "config.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.getenv("REDIS_URL", "redis://redis:6379/0"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -165,6 +176,16 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "10/day",        # Strict limit for unauthenticated
+        "user": "1000/hour",     # Standard limit for logged-in users
+        "ai_action": "5/minute", # For heavy tasks like Chat/Ingest
+    },
 }
 
 from datetime import timedelta

@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 from app.vector.qdrant import upsert_document
 from app.ai.rag import run_rag 
 from app.services.memory import get_history, save_message 
+from app.core.limiter import limiter  # Import from core
 import os
 
 router = APIRouter()
 
 # --- 1. INGEST ENDPOINT ---
 @router.post("/ingest")
-async def ingest_from_celery(payload: dict = Body(...)):
+@limiter.limit("10/minute")
+async def ingest_from_celery(request: Request, payload: dict = Body(...)):
     try:
         upsert_document(
             text=payload.get("text"),
@@ -22,7 +24,8 @@ async def ingest_from_celery(payload: dict = Body(...)):
 
 # --- 2. CHAT ENDPOINT (Stateful) ---
 @router.post("/chat")
-async def chat_with_langgraph(payload: dict = Body(...)):
+@limiter.limit("5/minute")
+async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
     try:
         user_message = payload.get("message")
         doc_id = str(payload.get("doc_id"))
@@ -35,10 +38,10 @@ async def chat_with_langgraph(payload: dict = Body(...)):
             "doc_id": doc_id,
         }
 
-        # Run the AI logic (rag.py will fetch history automatically)
+        # Run the AI logic
         response = await run_rag(state)
 
-        # SAVE TO DYNAMODB (Close the loop)
+        # SAVE TO DYNAMODB
         save_message(doc_id, "user", user_message)
         save_message(doc_id, "ai", response)
 
@@ -49,7 +52,8 @@ async def chat_with_langgraph(payload: dict = Body(...)):
 
 # --- 3. HISTORY ENDPOINT ---
 @router.get("/chat/history/{doc_id}")
-async def fetch_chat_history(doc_id: str):
+@limiter.limit("20/minute")
+async def fetch_chat_history(request: Request, doc_id: str):
     try:
         history = get_history(doc_id)
         return {"history": history}

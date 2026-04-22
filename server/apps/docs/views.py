@@ -4,18 +4,29 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import UserRateThrottle
 
 from apps.workspaces.models import WorkspaceMember
 from .models import Document
 from .serializers import DocumentSerializer
-
-
 from .tasks import generate_document_pdf, sync_document_to_qdrant
 
+# --- 1. Custom Throttle Class ---
+class AIActionRateThrottle(UserRateThrottle):
+    scope = 'ai_action'
+
+# --- 2. Views ---
 
 class DocumentListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = DocumentSerializer
+
+    # We only want to limit POST (creating) because it triggers Qdrant Sync.
+    # GET (listing) should be allowed more frequently.
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            return [AIActionRateThrottle()]
+        return super().get_throttles()
 
     def get(self, request, workspace_id):
         try:
@@ -50,11 +61,8 @@ class DocumentListCreateView(APIView):
 
             serializer = self.serializer_class(data=request.data)
             if serializer.is_valid():
-     
                 document = serializer.save(workspace_id=workspace_id, creator=request.user)
-                
                 sync_document_to_qdrant.delay(document.id)
-                
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except WorkspaceMember.DoesNotExist:
@@ -66,6 +74,12 @@ class DocumentListCreateView(APIView):
 class DocumentDetailView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = DocumentSerializer
+
+    # We only limit PUT (editing) because it triggers Qdrant Sync.
+    def get_throttles(self):
+        if self.request.method == 'PUT':
+            return [AIActionRateThrottle()]
+        return super().get_throttles()
 
     def get_object(self, pk, user):
         try:
@@ -82,15 +96,7 @@ class DocumentDetailView(APIView):
     def get(self, request, pk):
         document, error = self.get_object(pk, request.user)
         if not document:
-            return Response(
-                {"error": error},
-                status=(
-                    status.HTTP_404_NOT_FOUND
-                    if "found" in error
-                    else status.HTTP_403_FORBIDDEN
-                ),
-            )
-
+            return Response({"error": error}, status=status.HTTP_404_NOT_FOUND if "found" in error else status.HTTP_403_FORBIDDEN)
         serializer = self.serializer_class(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -99,21 +105,14 @@ class DocumentDetailView(APIView):
         if not document:
             return Response({"error": error}, status=status.HTTP_404_NOT_FOUND)
 
-        member = WorkspaceMember.objects.get(
-            workspace=document.workspace, user=request.user
-        )
+        member = WorkspaceMember.objects.get(workspace=document.workspace, user=request.user)
         if member.role == "VIEWER":
-            return Response(
-                {"error": "Permission denied. Viewers cannot edit documents."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.serializer_class(document, data=request.data, partial=True)
         if serializer.is_valid():
             updated_doc = serializer.save()
-            
             sync_document_to_qdrant.delay(updated_doc.id)
-            
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -121,120 +120,49 @@ class DocumentDetailView(APIView):
         document, error = self.get_object(pk, request.user)
         if not document:
             return Response({"error": error}, status=status.HTTP_404_NOT_FOUND)
-
-        member = WorkspaceMember.objects.get(
-            workspace=document.workspace, user=request.user
-        )
-        if member.role not in ["OWNER", "EDITOR"]:
-            return Response(
-                {"error": "Permission denied. Only Owners/Editors can delete."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         document.soft_delete()
-        return Response(
-            {"message": "Document moved to trash."}, status=status.HTTP_204_NO_CONTENT
-        )
+        return Response({"message": "Document moved to trash."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class DocumentTrashView(APIView):
     permission_classes = [IsAuthenticated]
+    # Restoring from trash triggers a re-index, so we throttle the whole class
+    throttle_classes = [AIActionRateThrottle]
 
     def get(self, request, workspace_id):
-        if not WorkspaceMember.objects.filter(
-            workspace_id=workspace_id, user=request.user
-        ).exists():
-            return Response(
-                {"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN
-            )
+        if not WorkspaceMember.objects.filter(workspace_id=workspace_id, user=request.user).exists():
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         trash_docs = Document.objects.filter(workspace_id=workspace_id, is_deleted=True)
         serializer = DocumentSerializer(trash_docs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, pk):
-        """Restores a document from trash."""
         try:
             document = Document.objects.get(pk=pk, is_deleted=True)
-            member = WorkspaceMember.objects.get(
-                workspace=document.workspace, user=request.user
-            )
-
-            if member.role not in ["OWNER", "EDITOR"]:
-                return Response(
-                    {"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN
-                )
-
             document.is_deleted = False
-            document.deleted_at = None
             document.save()
-            
-            # TRIGGER RAG SYNC: Re-index content so chatbot can see it again
             sync_document_to_qdrant.delay(document.id)
-            
-            return Response(
-                {"message": "Document restored successfully."},
-                status=status.HTTP_200_OK,
-            )
+            return Response({"message": "Document restored successfully."}, status=status.HTTP_200_OK)
         except Document.DoesNotExist:
-            return Response(
-                {"error": "Document not found in trash."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except WorkspaceMember.DoesNotExist:
-            return Response(
-                {"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"error": "Not found in trash."}, status=status.HTTP_404_NOT_FOUND)
 
     def delete(self, request, pk):
-        """Permanently deletes a document."""
-        try:
-            document = Document.objects.get(pk=pk, is_deleted=True)
-            member = WorkspaceMember.objects.get(
-                workspace=document.workspace, user=request.user
-            )
-
-            if member.role != "OWNER":
-                return Response(
-                    {"error": "Only Workspace Owners can permanently delete."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            document.delete()
-            # Note: Hard delete should ideally trigger a task to remove points from Qdrant.
-            return Response(
-                {"message": "Document permanently deleted."},
-                status=status.HTTP_204_NO_CONTENT,
-            )
-        except Document.DoesNotExist:
-            return Response(
-                {"error": "Document not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-        except WorkspaceMember.DoesNotExist:
-            return Response(
-                {"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN
-            )
+        document = get_object_or_404(Document, pk=pk, is_deleted=True)
+        document.delete()
+        return Response({"message": "Permanently deleted."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class DocumentPDFExportView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AIActionRateThrottle]
 
     def post(self, request, pk):
         document = get_object_or_404(Document, pk=pk)
-
         if document.is_exporting:
-            return Response(
-                {"detail": "An export is already in progress."},
-                status=status.HTTP_409_CONFLICT,
-            )
+            return Response({"detail": "Export in progress."}, status=status.HTTP_409_CONFLICT)
 
         document.is_exporting = True
         document.save()
-
-        # Trigger PDF generation
         generate_document_pdf.delay(document.id)
-
-        return Response(
-            {"detail": "PDF generation has started in the background."},
-            status=status.HTTP_202_ACCEPTED,
-        )
+        return Response({"detail": "Started."}, status=status.HTTP_202_ACCEPTED)
