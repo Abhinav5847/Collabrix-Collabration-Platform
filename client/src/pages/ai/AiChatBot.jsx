@@ -7,7 +7,34 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
 
   const scrollRef = useRef(null);
 
-  // Auto scroll to bottom when messages update
+  // --- 1. FETCH ACTUAL HISTORY FROM DYNAMODB ON MOUNT ---
+  useEffect(() => {
+    const loadSavedHistory = async () => {
+      try {
+        // This hits the NEW GET endpoint we added to chat.py
+        const res = await fetch(`http://localhost:8001/ai/chat/history/${docId}`);
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Map DynamoDB items (role/content) to the UI state
+          const formattedMessages = data.history.map(item => ({
+            role: item.role,
+            content: item.content
+          }));
+          
+          setMessages(formattedMessages);
+        }
+      } catch (err) {
+        console.error("Could not load previous messages:", err);
+      }
+    };
+
+    if (docId) {
+      loadSavedHistory();
+    }
+  }, [docId]);
+
+  // Auto scroll to bottom whenever messages change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -15,7 +42,6 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
   }, [messages]);
 
   const sendMessageToBackend = async (payload) => {
-    // Note: We use port 80 (default) because Nginx handles the /ai/ prefix
     const res = await fetch("http://localhost:8001/ai/chat", {
       method: "POST",
       headers: {
@@ -26,7 +52,7 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Error ${res.status}: ${res.statusText}`);
+      throw new Error(err.detail || `Error ${res.status}`);
     }
 
     return res.json();
@@ -45,19 +71,16 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
       content: userMsg,
     };
 
-    // Update UI immediately with user message
+    // Update UI immediately with the user's message
     setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
 
     try {
       const payload = {
         message: userMsg,
-        workspace_id: String(workspaceId), // Ensure strings for the backend
+        workspace_id: String(workspaceId),
         doc_id: String(docId),
-        history: messages.map(msg => ({
-          role: msg.role === "ai" ? "assistant" : msg.role, // Map 'ai' to 'assistant' for LLM
-          content: msg.content
-        })),
+        // History is handled by the backend now, so we keep the payload light
       };
 
       const data = await sendMessageToBackend(payload);
@@ -97,11 +120,11 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
         </div>
       </div>
 
-      {/* MESSAGES */}
+      {/* MESSAGES LIST */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-        {messages.length === 0 && (
+        {messages.length === 0 && !isLoading && (
           <div style={{ margin: "auto", color: "#888", textAlign: "center", maxWidth: "250px" }}>
-            Ask anything about this document. The AI has access to the current content.
+            Ask anything about this document. Your history is saved automatically.
           </div>
         )}
 
@@ -125,8 +148,8 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
         ))}
 
         {isLoading && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#777", fontSize: "13px" }}>
-            <div className="dot-typing"></div> Thinking...
+          <div style={{ padding: "10px", color: "#777", fontSize: "13px", fontStyle: "italic" }}>
+            Thinking...
           </div>
         )}
       </div>

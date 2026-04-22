@@ -32,19 +32,37 @@ services:
       - REDIS_HOST=redis
     depends_on: [db, redis]
 
+  # --- FIXED: Local DynamoDB Instance ---
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb_local
+    user: root  # Fixes "unable to open database file" error
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+    restart: always
+
   ai_service:
     build: ./ai_service
+    container_name: collabrix_ai
     ports:
       - "8001:8001"
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DYNAMODB_URL=http://dynamodb-local:8000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
     depends_on:
       - qdrant
+      - dynamodb-local
 
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: qdrant_db
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -96,3 +114,4 @@ volumes:
   postgres_data:
   media_data:
   qdrant_storage:
+  dynamodb_data:

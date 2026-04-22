@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Body, HTTPException
 from app.vector.qdrant import upsert_document
-from app.ai.rag import run_rag # This is your LangGraph logic
+from app.ai.rag import run_rag 
+from app.services.memory import get_history, save_message 
 import os
 
 router = APIRouter()
 
-# --- 1. INGEST ENDPOINT (For Celery) ---
+# --- 1. INGEST ENDPOINT ---
 @router.post("/ingest")
 async def ingest_from_celery(payload: dict = Body(...)):
     try:
@@ -19,22 +20,39 @@ async def ingest_from_celery(payload: dict = Body(...)):
         print(f"Ingest Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 2. CHAT ENDPOINT (For React - Using LangGraph) ---
+# --- 2. CHAT ENDPOINT (Stateful) ---
 @router.post("/chat")
 async def chat_with_langgraph(payload: dict = Body(...)):
     try:
-        # Prepare the state for your LangGraph 'run_rag' function
+        user_message = payload.get("message")
+        doc_id = str(payload.get("doc_id"))
+        workspace_id = str(payload.get("workspace_id"))
+
+        # Prepare initial state
         state = {
-            "message": payload.get("message"),
-            "workspace_id": str(payload.get("workspace_id")),
-            "doc_id": str(payload.get("doc_id")),
-            "history": payload.get("history", [])
+            "message": user_message,
+            "workspace_id": workspace_id,
+            "doc_id": doc_id,
         }
 
-        # This calls your LangGraph workflow
+        # Run the AI logic (rag.py will fetch history automatically)
         response = await run_rag(state)
+
+        # SAVE TO DYNAMODB (Close the loop)
+        save_message(doc_id, "user", user_message)
+        save_message(doc_id, "ai", response)
 
         return {"response": response}
     except Exception as e:
         print(f"LangGraph Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- 3. HISTORY ENDPOINT ---
+@router.get("/chat/history/{doc_id}")
+async def fetch_chat_history(doc_id: str):
+    try:
+        history = get_history(doc_id)
+        return {"history": history}
+    except Exception as e:
+        print(f"History Fetch Error: {e}")
+        raise HTTPException(status_code=500, detail="Could not retrieve history")

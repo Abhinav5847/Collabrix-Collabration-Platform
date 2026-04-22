@@ -1,50 +1,63 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # 1. Import Middleware
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router
 from app.vector.qdrant import init_collection
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Handles startup and shutdown logic.
-    Everything before 'yield' runs when the server starts.
-    """
     print("🚀 Starting AI Service...")
     
+    # 1. Initialize Qdrant
     try:
-        # Initialize Qdrant collection (Creates it if it doesn't exist)
         init_collection()
         print("Qdrant collection initialized.")
     except Exception as e:
-        print(f"⚠️ Warning: Could not initialize Qdrant on startup: {e}")
+        print(f"⚠️ Warning: Qdrant init failed: {e}")
+
+    # 2. Initialize DynamoDB Table
+    # IMPORT INSIDE THE FUNCTION to avoid circular dependency errors
+    try:
+        from app.services.memory import dynamodb
+        dynamodb.create_table(
+            TableName='Collabrix_AiChat_History',
+            KeySchema=[
+                {'AttributeName': 'doc_id', 'KeyType': 'HASH'},
+                {'AttributeName': 'timestamp', 'KeyType': 'RANGE'}
+            ],
+            AttributeDefinitions=[
+                {'AttributeName': 'doc_id', 'AttributeType': 'S'},
+                {'AttributeName': 'timestamp', 'AttributeType': 'N'}
+            ],
+            ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
+        )
+        print("✅ DynamoDB table 'Collabrix_AiChat_History' created.")
+    except Exception:
+        # If it already exists, this will fail silently, which is normal
+        print("ℹ️ DynamoDB table check complete (Already exists or Cloud).")
     
-    yield  # --- The FastAPI application is now running and handling requests ---
+    yield 
     
     print("Stopping AI Service...")
 
-# Initialize the FastAPI app with the lifespan manager
+# CRITICAL: Ensure 'app' is defined at the top level and not inside any 'if' block
 app = FastAPI(
     title="Collabrix AI Service",
     description="Backend service for RAG-based document chat",
     lifespan=lifespan
 )
 
-# 2. Add CORS Middleware BEFORE including routers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows your React app to talk to this service
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows GET, POST, OPTIONS, etc.
-    allow_headers=["*"],  # Allows all headers (Content-Type, etc.)
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include your chat router
 app.include_router(router, prefix="/ai")
 
 @app.get("/health")
 def health():
-    """
-    Simple health check to verify the container is running.
-    """
     return {"status": "ok", "service": "AI Service"}
