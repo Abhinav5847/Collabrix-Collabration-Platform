@@ -32,11 +32,10 @@ services:
       - REDIS_HOST=redis
     depends_on: [db, redis]
 
-  # --- FIXED: Local DynamoDB Instance ---
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     container_name: dynamodb_local
-    user: root  # Fixes "unable to open database file" error
+    user: root  
     ports:
       - "8000:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
