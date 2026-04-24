@@ -3,14 +3,12 @@ import os
 import time
 from boto3.dynamodb.conditions import Key
 
-# 1. Grab the URL from the docker-compose environment variables
-# If it's missing (Cloud mode), it defaults to None
 endpoint_url = os.getenv("DYNAMODB_URL")
 
 dynamodb = boto3.resource(
     'dynamodb', 
     region_name=os.getenv("AWS_REGION", "us-east-1"),
-    endpoint_url=endpoint_url,  # CRITICAL: This connects to your container
+    endpoint_url=endpoint_url, 
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "local"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "local")
 )
@@ -18,11 +16,10 @@ dynamodb = boto3.resource(
 table = dynamodb.Table('Collabrix_AiChat_History')
 
 def get_history(doc_id: str, limit: int = 10):
-    """Fetches the last 10 messages for this document from DynamoDB"""
     try:
         response = table.query(
             KeyConditionExpression=Key('doc_id').eq(doc_id),
-            ScanIndexForward=False, # Newest messages first
+            ScanIndexForward=False, 
             Limit=limit
         )
         return sorted(response.get('Items', []), key=lambda x: x['timestamp'])
@@ -31,7 +28,6 @@ def get_history(doc_id: str, limit: int = 10):
         return []
 
 def save_message(doc_id: str, role: str, content: str):
-    """Saves a single message to DynamoDB"""
     try:
         table.put_item(
             Item={

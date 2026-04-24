@@ -1,82 +1,72 @@
-from typing import TypedDict, List
+from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from app.ai.llm import llm
-from app.vector.qdrant import search
-from app.services.memory import get_history
-from fastapi.concurrency import run_in_threadpool
+from app.vector.qdrant import get_retriever
+from app.services.memory import get_history, save_message
 
-# 1. Define the State
 class AgentState(TypedDict):
     message: str
     workspace_id: str
     doc_id: str
-    history: List[dict]
+    history: str
     context: str
     response: str
 
-# 2. Define the RAG Node
-async def retrieve_and_generate(state: AgentState):
-    """
-    Node that searches Qdrant and generates a response from the LLM.
-    """
-    # Retrieve context from Qdrant
-    context_hits = await run_in_threadpool(
-        search, 
-        state["message"], 
-        state["workspace_id"],
-        state["doc_id"] 
-    )
+def prepare_node(state: AgentState):
+
+    raw_history = get_history(str(state["doc_id"])) 
+    formatted_history = "\n".join([f"{h['role']}: {h['content']}" for h in raw_history[-5:]])
+
+    retriever = get_retriever(state["workspace_id"], state["doc_id"])
+    docs = retriever.invoke(state["message"])
     
-    context_text = "\n\n".join(context_hits) if context_hits else "No relevant context found."
+    print(f"DEBUG: Found {len(docs)} chunks for Doc {state['doc_id']}")
+    
+    context_text = "\n\n".join([d.page_content for d in docs]) if docs else "NO_CONTEXT"
 
-    # Format History for the Prompt
-    formatted_history = ""
-    for entry in state.get('history', []):
-        role = "Assistant" if entry.get("role") == "ai" else "User"
-        content = entry.get("content", "")
-        formatted_history += f"{role}: {content}\n"
+    return {"history": formatted_history, "context": context_text}
 
-    # Build Prompt with Context AND History
+async def generate_node(state: AgentState):
+
+    if state['context'] == "NO_CONTEXT":
+        return {"response": "I'm sorry, I don't see any information in the document to answer that."}
+
     prompt = f"""
-    You are a workspace assistant for Collabrix. 
-    Use the history to remember the user's name or previous context.
-    Answer based on the context and conversation history provided.
-    
-    CONVERSATION HISTORY:
-    {formatted_history}
-    
+    You are the Collabrix AI Assistant. 
+    Use the DOCUMENT CONTEXT below to answer the user's question. 
+    If the answer isn't in the context, say you don't know.
+
     DOCUMENT CONTEXT:
-    {context_text}
-    
-    USER QUESTION:
+    {state['context']}
+
+    CHAT HISTORY:
+    {state['history']}
+
+    USER QUESTION: 
     {state['message']}
     """
+    res = await llm.ainvoke(prompt)
+    return {"response": res.content}
 
-    # Invoke LLM (Grok/Gemini)
-    response = await llm.ainvoke(prompt)
-    
-    return {"response": response.content, "context": context_text}
+def save_node(state: AgentState):
 
-# 3. Build/Compile the Graph
+    save_message(state["doc_id"], "user", state["message"])
+    save_message(state["doc_id"], "ai", state["response"])
+    return state
+
 workflow = StateGraph(AgentState)
-workflow.add_node("agent", retrieve_and_generate)
-workflow.set_entry_point("agent")
-workflow.add_edge("agent", END)
+workflow.add_node("prepare", prepare_node)
+workflow.add_node("generate", generate_node)
+workflow.add_node("save", save_node)
+
+workflow.set_entry_point("prepare")
+workflow.add_edge("prepare", "generate")
+workflow.add_edge("generate", "save")
+workflow.add_edge("save", END)
+
 app_rag = workflow.compile()
 
-# --- 4. FIXED Helper Function ---
 async def run_rag(state_input: dict):
-    """
-    Entry point that fetches history from DynamoDB before running the graph.
-    """
-    doc_id = state_input.get("doc_id")
-    
-    # 1. Fetch history from DynamoDB
-    saved_history = get_history(doc_id)
-    
-    # 2. Inject it into the state so the 'agent' node can see it
-    state_input["history"] = saved_history
 
-    # 3. Execute the graph
     result = await app_rag.ainvoke(state_input)
     return result["response"]

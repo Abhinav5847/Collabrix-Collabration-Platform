@@ -2,12 +2,11 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from app.vector.qdrant import upsert_document
 from app.ai.rag import run_rag 
 from app.services.memory import get_history, save_message 
-from app.core.limiter import limiter  # Import from core
+from app.core.limiter import limiter  
 import os
 
 router = APIRouter()
 
-# --- 1. INGEST ENDPOINT ---
 @router.post("/ingest")
 @limiter.limit("10/minute")
 async def ingest_from_celery(request: Request, payload: dict = Body(...)):
@@ -22,7 +21,6 @@ async def ingest_from_celery(request: Request, payload: dict = Body(...)):
         print(f"Ingest Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 2. CHAT ENDPOINT (Stateful) ---
 @router.post("/chat")
 @limiter.limit("5/minute")
 async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
@@ -31,17 +29,14 @@ async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
         doc_id = str(payload.get("doc_id"))
         workspace_id = str(payload.get("workspace_id"))
 
-        # Prepare initial state
         state = {
             "message": user_message,
             "workspace_id": workspace_id,
             "doc_id": doc_id,
         }
 
-        # Run the AI logic
         response = await run_rag(state)
 
-        # SAVE TO DYNAMODB
         save_message(doc_id, "user", user_message)
         save_message(doc_id, "ai", response)
 
@@ -50,7 +45,6 @@ async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
         print(f"LangGraph Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 3. HISTORY ENDPOINT ---
 @router.get("/chat/history/{doc_id}")
 @limiter.limit("20/minute")
 async def fetch_chat_history(request: Request, doc_id: str):
