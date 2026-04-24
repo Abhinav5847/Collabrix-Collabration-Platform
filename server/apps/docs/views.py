@@ -11,18 +11,14 @@ from .models import Document
 from .serializers import DocumentSerializer
 from .tasks import generate_document_pdf, sync_document_to_qdrant
 
-# --- 1. Custom Throttle Class ---
+
 class AIActionRateThrottle(UserRateThrottle):
     scope = 'ai_action'
-
-# --- 2. Views ---
 
 class DocumentListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = DocumentSerializer
 
-    # We only want to limit POST (creating) because it triggers Qdrant Sync.
-    # GET (listing) should be allowed more frequently.
     def get_throttles(self):
         if self.request.method == 'POST':
             return [AIActionRateThrottle()]
@@ -75,7 +71,6 @@ class DocumentDetailView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = DocumentSerializer
 
-    # We only limit PUT (editing) because it triggers Qdrant Sync.
     def get_throttles(self):
         if self.request.method == 'PUT':
             return [AIActionRateThrottle()]
@@ -126,7 +121,6 @@ class DocumentDetailView(APIView):
 
 class DocumentTrashView(APIView):
     permission_classes = [IsAuthenticated]
-    # Restoring from trash triggers a re-index, so we throttle the whole class
     throttle_classes = [AIActionRateThrottle]
 
     def get(self, request, workspace_id):
