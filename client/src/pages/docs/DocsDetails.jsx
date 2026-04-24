@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../../services/api"; // Your Django API
-import axios from "axios"; // For AI Service
-import { ArrowLeft, Trash, MessageSquare, X, Sparkles, Send, Loader2 } from "lucide-react";
+import { api } from "../../services/api";
+import axios from "axios"; 
+import { 
+  ArrowLeft, Trash, X, Sparkles, Send, 
+  Loader2, PanelRightClose, MessageSquare 
+} from "lucide-react";
 
 export default function DocumentDetail() {
   const { pk } = useParams();
   const navigate = useNavigate();
+  
+  // Clean State
   const [doc, setDoc] = useState({ title: "", content: "", workspace: "" });
   const [saving, setSaving] = useState(false);
   
@@ -16,18 +21,39 @@ export default function DocumentDetail() {
   const [messages, setMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
 
+  // Ref for Auto-save (Prevents stale state issues)
+  const docRef = useRef(doc);
+  useEffect(() => { docRef.current = doc; }, [doc]);
+
+  // Load Document
   useEffect(() => {
     api.get(`/documents/documents/${pk}/`).then(res => setDoc(res.data));
   }, [pk]);
 
+  // Auto-save Logic (Saves 1.5 seconds after you stop typing)
+  useEffect(() => {
+    if (!doc.title && !doc.content) return;
+    const delayDebounceFn = setTimeout(() => {
+      handleUpdate();
+    }, 1500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [doc.title, doc.content]);
+
   const handleUpdate = async () => {
     setSaving(true);
     try {
-      await api.put(`/documents/documents/${pk}/`, doc);
-      // Note: Django Signal triggers Celery task sync_document_to_qdrant automatically here
+      await api.put(`/documents/documents/${pk}/`, docRef.current);
+    } catch (err) {
+      console.error("Auto-save failed");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSoftDelete = async () => {
+    if (!window.confirm("Move to trash?")) return;
+    await api.delete(`/documents/documents/${pk}/`);
+    navigate(-1);
   };
 
   const sendChatMessage = async (e) => {
@@ -55,44 +81,91 @@ export default function DocumentDetail() {
 
   return (
     <div className="vh-100 d-flex flex-column bg-white overflow-hidden">
-      {/* Header */}
-      <div className="border-bottom p-3 d-flex align-items-center justify-content-between">
-        <div className="d-flex align-items-center gap-3">
-          <button className="btn btn-sm btn-light rounded-circle" onClick={() => navigate(-1)}><ArrowLeft size={18}/></button>
-          <input className="form-control border-0 fw-bold fs-5 shadow-none" value={doc.title} onChange={(e) => setDoc({...doc, title: e.target.value})} onBlur={handleUpdate}/>
+      {/* HEADER / TOP BAR */}
+      <div className="border-bottom px-3 d-flex align-items-center justify-content-between bg-white" style={{ height: 60 }}>
+        <div className="d-flex align-items-center gap-3 flex-grow-1">
+          <button className="btn btn-sm btn-light rounded-circle" onClick={() => navigate(-1)}>
+            <ArrowLeft size={18}/>
+          </button>
+          <input 
+            className="form-control border-0 fw-bold fs-5 shadow-none p-0" 
+            value={doc.title} 
+            onChange={(e) => setDoc({...doc, title: e.target.value})} 
+            placeholder="Untitled Document"
+          />
         </div>
-        <div className="d-flex gap-2">
-          <small className="text-muted mt-2">{saving ? "Syncing AI..." : "Ready"}</small>
-          <button className={`btn btn-sm ${isChatOpen ? 'btn-primary' : 'btn-outline-dark'}`} onClick={() => setIsChatOpen(!isChatOpen)}><Sparkles size={16} /> AI</button>
+
+        <div className="d-flex align-items-center gap-2">
+          <small className="text-muted">
+            {saving ? (
+              <span className="d-flex align-items-center gap-1">
+                <Loader2 size={14} className="animate-spin" /> Syncing...
+              </span>
+            ) : "Ready"}
+          </small>
+          
+          <div className="vr mx-2" style={{ height: 20 }}></div>
+
+          <button 
+            className={`btn btn-sm ${isChatOpen ? 'btn-primary' : 'btn-light'}`} 
+            onClick={() => setIsChatOpen(!isChatOpen)}
+          >
+            <Sparkles size={16} className="me-1" /> AI
+          </button>
+
+          <button className="btn btn-sm btn-light text-danger" onClick={handleSoftDelete}>
+            <Trash size={16} />
+          </button>
         </div>
       </div>
 
-      {/* Main Body */}
+      {/* MAIN CONTENT AREA */}
       <div className="d-flex flex-grow-1 overflow-hidden">
-        <div className="flex-grow-1 p-5 overflow-auto bg-light">
-          <textarea className="form-control border-0 shadow-none bg-white p-5 mx-auto rounded-3" style={{ maxWidth: '800px', minHeight: '80vh', fontSize: '1.1rem' }} value={doc.content} onChange={(e) => setDoc({...doc, content: e.target.value})} onBlur={handleUpdate} placeholder="Start writing..."/>
+        
+        {/* TEXT EDITOR */}
+        <div className="flex-grow-1 p-4 p-md-5 overflow-auto bg-light d-flex justify-content-center">
+          <textarea 
+            className="form-control border-0 shadow-sm bg-white p-5 rounded-3" 
+            style={{ maxWidth: '800px', minHeight: '80vh', fontSize: '1.1rem', lineHeight: '1.6' }} 
+            value={doc.content} 
+            onChange={(e) => setDoc({...doc, content: e.target.value})} 
+            placeholder="Start writing..."
+          />
         </div>
 
-        {/* AI Sidebar */}
+        {/* AI SIDEBAR */}
         {isChatOpen && (
-          <div className="border-start bg-white d-flex flex-column shadow-sm" style={{ width: '400px' }}>
-            <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
-              <span className="fw-bold"><Sparkles size={16} className="text-primary me-2"/>AI Assistant</span>
-              <button className="btn btn-sm text-muted" onClick={() => setIsChatOpen(false)}><X size={18}/></button>
+          <div className="border-start bg-white d-flex flex-column shadow-sm" style={{ width: '380px' }}>
+            <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-light bg-opacity-50">
+              <span className="fw-bold d-flex align-items-center gap-2">
+                <Sparkles size={16} className="text-primary"/> AI Assistant
+              </span>
+              <button className="btn btn-sm text-muted" onClick={() => setIsChatOpen(false)}>
+                <X size={18}/>
+              </button>
             </div>
+
             <div className="flex-grow-1 p-3 overflow-auto">
               {messages.map((m, i) => (
-                <div key={i} className={`mb-3 p-2 rounded-3 ${m.role === 'user' ? 'bg-light text-end' : 'bg-primary bg-opacity-10'}`}>
-                  <small className="fw-bold d-block mb-1">{m.role.toUpperCase()}</small>
+                <div key={i} className={`mb-3 p-3 rounded-3 ${m.role === 'user' ? 'bg-light text-dark ms-4 border' : 'bg-primary bg-opacity-10 me-4'}`}>
+                  <small className="fw-bold d-block mb-1 text-uppercase" style={{ fontSize: '0.7rem' }}>{m.role}</small>
                   {m.text}
                 </div>
               ))}
-              {chatLoading && <Loader2 className="spinner-border spinner-border-sm text-primary animate-spin" />}
+              {chatLoading && <Loader2 className="animate-spin text-primary m-2" size={20} />}
             </div>
+
             <form onSubmit={sendChatMessage} className="p-3 border-top">
               <div className="input-group">
-                <input className="form-control border-0 bg-light" placeholder="Ask about this doc..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
-                <button className="btn btn-primary" type="submit"><Send size={16}/></button>
+                <input 
+                  className="form-control border-0 bg-light" 
+                  placeholder="Ask about this doc..." 
+                  value={chatInput} 
+                  onChange={e => setChatInput(e.target.value)} 
+                />
+                <button className="btn btn-primary" type="submit" disabled={chatLoading}>
+                  <Send size={16}/>
+                </button>
               </div>
             </form>
           </div>
