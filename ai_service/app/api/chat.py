@@ -21,7 +21,7 @@ async def ingest_from_celery(request: Request, payload: dict = Body(...)):
         print(f"Ingest Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/chat")
+@router.post("")
 @limiter.limit("5/minute")
 async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
     try:
@@ -45,7 +45,7 @@ async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
         print(f"LangGraph Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/chat/history/{doc_id}")
+@router.get("/history/{doc_id}")
 @limiter.limit("20/minute")
 async def fetch_chat_history(request: Request, doc_id: str):
     try:

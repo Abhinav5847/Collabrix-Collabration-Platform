@@ -11,6 +11,8 @@ langchain-groq>=0.1.0
 langchain-google-genai>=2.0.0
 langgraph>=0.2.0
 
+langgraph-checkpoint-aws>=1.0.0
+
 # Google AI
 google-genai>=1.0.0
 

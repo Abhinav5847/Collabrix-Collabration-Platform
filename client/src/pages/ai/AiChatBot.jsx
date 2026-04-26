@@ -4,100 +4,78 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
   const scrollRef = useRef(null);
 
-  // --- 1. FETCH ACTUAL HISTORY FROM DYNAMODB ON MOUNT ---
+  // --- THE CRITICAL FIX ---
+  // We now point to the Nginx Gateway (Port 80) 
+  // Nginx handles the /ai/ prefix and forwards it to port 8001 internally.
+  const GATEWAY_URL = "http://localhost/ai";
+
+  // 1. Load History on Mount
   useEffect(() => {
     const loadSavedHistory = async () => {
+      if (!docId) return;
       try {
-        // This hits the NEW GET endpoint we added to chat.py
-        const res = await fetch(`http://localhost:8001/ai/chat/history/${docId}`);
+        const res = await fetch(`${GATEWAY_URL}/chat/history/${docId}`);
         if (res.ok) {
           const data = await res.json();
-          
-          // Map DynamoDB items (role/content) to the UI state
           const formattedMessages = data.history.map(item => ({
             role: item.role,
             content: item.content
           }));
-          
           setMessages(formattedMessages);
         }
       } catch (err) {
-        console.error("Could not load previous messages:", err);
+        console.error("History Load Error:", err);
       }
     };
 
-    if (docId) {
-      loadSavedHistory();
-    }
+    loadSavedHistory();
   }, [docId]);
 
-  // Auto scroll to bottom whenever messages change
+  // 2. Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const sendMessageToBackend = async (payload) => {
-    const res = await fetch("http://localhost:8001/ai/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Error ${res.status}`);
-    }
-
-    return res.json();
-  };
-
+  // 3. Send Message Logic
   const sendMessage = async (e) => {
     e?.preventDefault();
-
     const userMsg = input.trim();
     if (!userMsg || isLoading) return;
 
     setInput("");
-
-    const newUserMessage = {
-      role: "user",
-      content: userMsg,
-    };
-
-    // Update UI immediately with the user's message
+    const newUserMessage = { role: "user", content: userMsg };
     setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
 
     try {
-      const payload = {
-        message: userMsg,
-        workspace_id: String(workspaceId),
-        doc_id: String(docId),
-        // History is handled by the backend now, so we keep the payload light
-      };
+      const res = await fetch(`${GATEWAY_URL}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          workspace_id: String(workspaceId),
+          doc_id: String(docId),
+        }),
+      });
 
-      const data = await sendMessageToBackend(payload);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `Server Error: ${res.status}`);
+      }
 
-      const aiMessage = {
-        role: "ai",
-        content: data?.response || "I processed the document but have no response.",
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: data?.response || "I processed the request but have no response." }
+      ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "ai",
-          content: `⚠️ ${err.message}`,
-        },
+        { role: "ai", content: `⚠️ ${err.message}` }
       ]);
     } finally {
       setIsLoading(false);
@@ -111,73 +89,72 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "sans-serif", background: "#f5f4f0" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f5f4f0", borderRadius: "12px", border: "1px solid #ddd", overflow: "hidden" }}>
       {/* HEADER */}
-      <div style={{ background: "#1a1a1a", padding: "14px 20px", display: "flex", alignItems: "center", color: "#fff" }}>
-        <div style={{ fontWeight: "bold" }}>Collabrix AI Chat</div>
-        <div style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
-          Workspace: {workspaceId} | Doc: {docId}
-        </div>
+      <div style={{ background: "#1a1a1a", padding: "12px 20px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: "bold", fontSize: "14px" }}>Collabrix AI Chat</span>
+        <span style={{ fontSize: "10px", opacity: 0.6 }}>Doc: {docId}</span>
       </div>
 
-      {/* MESSAGES LIST */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* CHAT WINDOW */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
         {messages.length === 0 && !isLoading && (
-          <div style={{ margin: "auto", color: "#888", textAlign: "center", maxWidth: "250px" }}>
-            Ask anything about this document. Your history is saved automatically.
+          <div style={{ margin: "auto", color: "#999", textAlign: "center", fontSize: "13px" }}>
+            Ask anything about this document...
           </div>
         )}
 
         {messages.map((msg, i) => (
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
             <div style={{
-                maxWidth: "75%",
-                padding: "10px 14px",
-                borderRadius: "15px",
-                borderBottomRightRadius: msg.role === "user" ? "2px" : "15px",
-                borderBottomLeftRadius: msg.role === "ai" ? "2px" : "15px",
-                background: msg.role === "user" ? "#007AFF" : "#fff",
-                color: msg.role === "user" ? "#fff" : "#000",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                fontSize: "14px",
-                lineHeight: "1.5"
-              }}>
+              maxWidth: "80%",
+              padding: "10px 14px",
+              borderRadius: "15px",
+              background: msg.role === "user" ? "#000" : "#fff",
+              color: msg.role === "user" ? "#fff" : "#000",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              border: msg.role === "ai" ? "1px solid #eee" : "none"
+            }}>
               {msg.content}
             </div>
           </div>
         ))}
 
         {isLoading && (
-          <div style={{ padding: "10px", color: "#777", fontSize: "13px", fontStyle: "italic" }}>
+          <div style={{ color: "#777", fontSize: "12px", fontStyle: "italic", paddingLeft: "5px" }}>
             Thinking...
           </div>
         )}
       </div>
 
       {/* INPUT AREA */}
-      <div style={{ padding: "16px", borderTop: "1px solid #ddd", background: "#fff", display: "flex", gap: 10 }}>
-        <input
-          style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", outline: "none" }}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="Ask about requirements, summaries..."
-        />
-        <button
-          onClick={sendMessage}
-          disabled={isLoading || !input.trim()}
-          style={{
-            padding: "0 20px",
-            background: isLoading || !input.trim() ? "#ccc" : "#000",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "bold"
-          }}
-        >
-          Send
-        </button>
+      <div style={{ padding: "15px", background: "#fff", borderTop: "1px solid #ddd" }}>
+        <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px" }}>
+          <input
+            style={{ flex: 1, padding: "10px 15px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "14px" }}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Type your message..."
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            style={{
+              padding: "0 20px",
+              background: isLoading || !input.trim() ? "#ccc" : "#000",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600"
+            }}
+          >
+            Send
+          </button>
+        </form>
       </div>
     </div>
   );

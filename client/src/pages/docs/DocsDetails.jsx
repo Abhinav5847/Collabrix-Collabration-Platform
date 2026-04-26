@@ -21,6 +21,10 @@ export default function DocumentDetail() {
   const [messages, setMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
 
+  // --- THE CRITICAL FIX ---
+  // We point to the Gateway (Port 80) instead of the internal port 8001.
+  const AI_SERVICE_URL = "http://localhost/ai/chat";
+
   // Ref for Auto-save (Prevents stale state issues)
   const docRef = useRef(doc);
   useEffect(() => { docRef.current = doc; }, [doc]);
@@ -62,18 +66,22 @@ export default function DocumentDetail() {
 
     const userMsg = { role: "user", text: chatInput };
     setMessages([...messages, userMsg]);
+    const currentInput = chatInput; // Capture current input
     setChatInput("");
     setChatLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:8001/ai/chat", {
-        message: chatInput,
+      // FIXED: URL changed from http://localhost:8001/ai/chat to AI_SERVICE_URL (Port 80)
+      const res = await axios.post(AI_SERVICE_URL, {
+        message: currentInput,
         doc_id: pk,
-        workspace_id: doc.workspace
+        workspace_id: String(doc.workspace) // Ensure workspace_id is sent as a string
       });
+      
       setMessages(prev => [...prev, { role: "ai", text: res.data.response }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: "ai", text: "AI Service Error." }]);
+      console.error("AI Chat Error:", err);
+      setMessages(prev => [...prev, { role: "ai", text: `⚠️ Error: ${err.response?.data?.detail || "AI Service unreachable."}` }]);
     } finally {
       setChatLoading(false);
     }
@@ -126,7 +134,7 @@ export default function DocumentDetail() {
         <div className="flex-grow-1 p-4 p-md-5 overflow-auto bg-light d-flex justify-content-center">
           <textarea 
             className="form-control border-0 shadow-sm bg-white p-5 rounded-3" 
-            style={{ maxWidth: '800px', minHeight: '80vh', fontSize: '1.1rem', lineHeight: '1.6' }} 
+            style={{ maxWidth: '800px', minHeight: '80vh', fontSize: '1.1rem', lineHeight: '1.6', outline: 'none', resize: 'none' }} 
             value={doc.content} 
             onChange={(e) => setDoc({...doc, content: e.target.value})} 
             placeholder="Start writing..."
@@ -152,19 +160,24 @@ export default function DocumentDetail() {
                   {m.text}
                 </div>
               ))}
-              {chatLoading && <Loader2 className="animate-spin text-primary m-2" size={20} />}
+              {chatLoading && (
+                <div className="d-flex align-items-center gap-2 m-2 text-muted italic" style={{ fontSize: '13px' }}>
+                  <Loader2 className="animate-spin text-primary" size={18} /> 
+                  Thinking...
+                </div>
+              )}
             </div>
 
             <form onSubmit={sendChatMessage} className="p-3 border-top">
-              <div className="input-group">
+              <div className="input-group bg-light rounded-3 overflow-hidden">
                 <input 
-                  className="form-control border-0 bg-light" 
+                  className="form-control border-0 bg-transparent py-2 shadow-none" 
                   placeholder="Ask about this doc..." 
                   value={chatInput} 
                   onChange={e => setChatInput(e.target.value)} 
                 />
-                <button className="btn btn-primary" type="submit" disabled={chatLoading}>
-                  <Send size={16}/>
+                <button className="btn text-primary border-0" type="submit" disabled={chatLoading || !chatInput.trim()}>
+                  <Send size={18}/>
                 </button>
               </div>
             </form>

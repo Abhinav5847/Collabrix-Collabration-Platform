@@ -23,6 +23,7 @@ import DocumentDetail from './pages/docs/DocsDetails';
 import TrashManager from './pages/docs/DocsTrash';
 import NotificationsPage from './pages/notification/NotificationList';
 import WorkspaceMembers from './pages/Workspace/WorkspaceMembers';
+import AgentTestPage from './pages/ai/AgentTestPage';
 
 
 function App() {
@@ -52,6 +53,8 @@ function App() {
           <Route path="/chatbot" element={<CollabrixChat/>} />
           <Route path="notifications" element={<NotificationsPage/>} />
           <Route path="/workspace/:workspaceId/members" element={<WorkspaceMembers/>} />
+          <Route path="/agent" element={<AgentTestPage/>} />
+
           <Route 
           path="/workspace/:workspaceId/documents" 
           element={<DocumentList/>} 

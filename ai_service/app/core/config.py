@@ -9,6 +9,7 @@ class Settings:
     QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
     GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
     GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY')
-
+    DRF_INTERNAL_URL=os.environ.get('DRF_INTERNAL_URL')
+    INTERNAL_SECRET=os.environ.get('INTERNAL_SECRET')
 
 settings = Settings()
