@@ -60,7 +60,7 @@ async def invite_member_to_workspace(workspace_id: int, user_email: str):
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
-                f"{settings.DRF_INTERNAL_URL}/api/workspaces/{workspace_id}/members/",
+                f"{settings.DRF_INTERNAL_URL}/workspaces/{workspace_id}/members/",
                 json={"email": user_email},
                 headers={
                     "X-Internal-Secret": settings.INTERNAL_SECRET

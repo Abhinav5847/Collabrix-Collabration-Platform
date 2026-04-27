@@ -3,10 +3,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
+# RAG & Core Imports
 from app.api.chat import router as rag_router
-from app.api.agent_chat import router as agent_router
 from app.vector.qdrant import init_collection
 from app.core.limiter import limiter
+
+# Agent Imports
+from app.api.agent_chat import router as agent_router
+
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
@@ -15,20 +19,19 @@ from slowapi.middleware import SlowAPIMiddleware
 async def lifespan(app: FastAPI):
     print("🚀 Starting Collabrix AI Service...")
     
-    # 1. Initialize Vector DB (Qdrant)
+    # 1. RAG: Initialize Qdrant
     try:
         init_collection()
-        print("✅ Qdrant collection initialized.")
+        print("✅ Qdrant initialized.")
     except Exception as e:
-        print(f"⚠️ Qdrant init failed: {e}")
+        print(f"⚠️ Qdrant failed: {e}")
 
-    # 2. Initialize DynamoDB Tables
+    # 2. DynamoDB: RAG Table (Keeping your existing logic)
     try:
         from app.services.memory import dynamodb
-        # Access the low-level client from the resource to get exceptions
         client = dynamodb.meta.client
         
-        # --- Table A: RAG Chat History ---
+        # --- RAG TABLE (DO NOT REMOVE) ---
         try:
             dynamodb.create_table(
                 TableName='Collabrix_AiChat_History',
@@ -42,51 +45,38 @@ async def lifespan(app: FastAPI):
                 ],
                 ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
             )
-            print("📦 Table 'Collabrix_AiChat_History' created.")
+            print("✅ RAG Table verified.")
         except client.exceptions.ResourceInUseException:
-            print("ℹ️ Table 'Collabrix_AiChat_History' already exists.")
-
-        # --- Table B: Agent Checkpoints ---
-        # REQUIRED: thread_id (HASH) and checkpoint_id (RANGE) for LangGraph
-        try:
-            dynamodb.create_table(
-                TableName='Collabrix_Agent_Checkpoints',
-                KeySchema=[
-                    {'AttributeName': 'thread_id', 'KeyType': 'HASH'},
-                    {'AttributeName': 'checkpoint_id', 'KeyType': 'RANGE'}
-                ],
-                AttributeDefinitions=[
-                    {'AttributeName': 'thread_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'checkpoint_id', 'AttributeType': 'S'}
-                ],
-                ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
-            )
-            print("📦 Table 'Collabrix_Agent_Checkpoints' created.")
-        except client.exceptions.ResourceInUseException:
-            print("ℹ️ Table 'Collabrix_Agent_Checkpoints' already exists.")
+            pass
+            
+        print("ℹ️ Note: Agent Table is managed manually in AWS Console.")
 
     except Exception as e:
-        print(f"❌ DynamoDB initialization error: {e}")
+        print(f"❌ DynamoDB Setup Error: {e}")
     
     yield 
-    print("🛑 Stopping AI Service...")
+    print("Stopping Service...")
 
-app = FastAPI(
-    title="Collabrix AI Service",
-    description="Multi-Agent and RAG Service",
-    lifespan=lifespan
-)
+app = FastAPI(title="Collabrix AI Service", lifespan=lifespan)
 
-# RATE LIMITING
+# Restore Rate Limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# ROUTING
-# Note: Ensure these prefixes match your Nginx configuration
-app.include_router(rag_router, prefix="/chat", tags=["RAG Chat"])
-app.include_router(agent_router, prefix="/agent", tags=["Agentic AI"])
+# Restore CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- ROUTES ---
+app.include_router(rag_router, prefix="/ai", tags=["RAG"]) # Your original RAG
+app.include_router(agent_router, prefix="/agent", tags=["Agent"]) # New Agent
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "AI Service"}
+    return {"status": "ok"}
