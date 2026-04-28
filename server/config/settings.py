@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "rest_framework",
     # "corsheaders",
+    'rest_framework_simplejwt.token_blacklist',
     "drf_spectacular",
     "django_celery_results",
     "django_celery_beat",
@@ -193,6 +194,8 @@ from datetime import timedelta
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,  
+    "BLACKLIST_AFTER_ROTATION": True, 
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
@@ -247,5 +250,5 @@ AWS_REGION = os.environ.get('AWS_REGION', 'eu-north-1')
 FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME', 'send_fcm_notification')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
 
-GROQ_API_KEY=os.environ.get('GROQ_API_KEYv')
+GROQ_API_KEY=os.environ.get('GROQ_API_KEY')
 GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY')
