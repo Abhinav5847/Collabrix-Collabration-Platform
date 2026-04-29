@@ -1,20 +1,18 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
 
+// --- Thunks ---
 
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (userData, { rejectWithValue }) => {
     try {
+      // Cookies are now handled by the browser/Axios (withCredentials: true).
       const response = await api.post('/accounts/login/', userData);
       
-      localStorage.setItem('access', response.data.access);
-      localStorage.setItem('refresh', response.data.refresh);
-      
-      const userId = response.data.user?.id || response.data.id;
-      if (userId) {
-        localStorage.setItem('userId', userId);
-      }
+      // We store a flag in localStorage just to persist 'logged in' state 
+      // across page refreshes since we can't read the HttpOnly cookie.
+      localStorage.setItem('isAuthenticated', 'true');
       
       return response.data; 
     } catch (err) {
@@ -23,11 +21,12 @@ export const loginUser = createAsyncThunk(
   }
 );
 
+// Updated: No userId needed in parameters. Backend identifies user by cookie.
 export const fetchUserProfile = createAsyncThunk(
   'auth/fetchUserProfile',
-  async (userId, { rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/accounts/user/${userId}/`);
+      const response = await api.get('accounts/user/profile/');
       return response.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || "Failed to load user profile");
@@ -127,18 +126,22 @@ const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null, 
-    token: localStorage.getItem('access'),
+    // Using a boolean flag instead of userId for cleaner state
+    isAuthenticated: localStorage.getItem('isAuthenticated') === 'true',
     loading: false,
     error: null,
     qrImage: null, 
   },
   reducers: {
     logout: (state) => {
-      localStorage.clear(); 
+      localStorage.removeItem('isAuthenticated'); 
       state.user = null;
-      state.token = null;
+      state.isAuthenticated = false;
       state.error = null;
       state.qrImage = null;
+      
+      // Tell backend to clear HttpOnly cookies
+      api.post('/accounts/logout/').catch(() => {});
     },
     clearError: (state) => {
       state.error = null;
@@ -146,24 +149,25 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.token = action.payload.access;
-        state.user = action.payload.user || null;
+        state.user = action.payload.user || action.payload;
+        state.isAuthenticated = true;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.isAuthenticated = false;
       })
 
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload;
+        state.isAuthenticated = true;
       })
 
       .addCase(fetchMfaQr.pending, (state) => {
@@ -179,7 +183,6 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      // MFA 
       .addCase(verifyMfa.fulfilled, (state) => {
         state.loading = false;
         state.qrImage = null;

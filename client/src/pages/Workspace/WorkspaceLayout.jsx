@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { fetchUserProfile, logout } from '../../store/slices/authSlice';
-import { jwtDecode } from 'jwt-decode';
 
 export default function WorkspaceLayout() {
     const [workspaces, setWorkspaces] = useState([]);
@@ -18,27 +17,21 @@ export default function WorkspaceLayout() {
     const location = useLocation();
     const dispatch = useDispatch();
 
-    const { user, token } = useSelector((state) => state.auth);
+    const { user } = useSelector((state) => state.auth);
 
     useEffect(() => {
-        const accessToken = localStorage.getItem('access') || token;
-        
-        if (!accessToken) {
-            setLoading(false);
-            return;
-        }
-
         const fetchInitialData = async () => {
             try {
+                // 1. Fetch Workspaces (Cookies sent automatically)
                 const wsRes = await api.get('workspaces/');
                 setWorkspaces(wsRes.data);
 
+                // 2. Fetch Profile if missing (No jwtDecode needed)
                 if (!user) {
-                    const decoded = jwtDecode(accessToken);
-                    const userId = decoded.user_id || decoded.id;
-                    dispatch(fetchUserProfile(userId));
+                    await dispatch(fetchUserProfile()).unwrap();
                 }
             } catch (err) {
+                // If the interceptor failed to refresh, we redirect to login
                 if (err.response?.status === 401) {
                     dispatch(logout());
                     navigate('/login');
@@ -49,11 +42,17 @@ export default function WorkspaceLayout() {
         };
 
         fetchInitialData();
-    }, [navigate, dispatch, user, token]);
+    }, [navigate, dispatch]); // user removed from deps to prevent loops
 
-    const handleLogout = () => {
-        dispatch(logout());
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            await api.post('accounts/logout/'); // Tell backend to clear cookies
+        } catch (e) {
+            console.error("Logout failed", e);
+        } finally {
+            dispatch(logout());
+            navigate('/login');
+        }
     };
 
     const isActive = (path) => location.pathname === path;
@@ -173,7 +172,6 @@ export default function WorkspaceLayout() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {/* NOTIFICATION ICON - Navigates on click */}
                         <button 
                             onClick={() => navigate('/notifications')} 
                             style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', position: 'relative' }}
@@ -182,7 +180,6 @@ export default function WorkspaceLayout() {
                             <span style={{ position: 'absolute', top: '7px', right: '7px', width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', border: '1.5px solid #fff' }} />
                         </button>
 
-                        {/* LOGIN / LOGOUT TOGGLE */}
                         {user ? (
                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '4px 12px 4px 6px' }}>
                                 <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '11px' }}>{avatarInitial}</div>
