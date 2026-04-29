@@ -3,11 +3,12 @@ from django.conf import settings
 
 class CookieJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
+        # Still allow Header auth (useful for mobile apps/Postman)
         header = self.get_header(request)
         
         if header is None:
-            # Look for the 'access' cookie defined in settings
-            raw_token = request.COOKIES.get(settings.SIMPLE_JWT['AUTH_COOKIE']) or None
+            # Fallback: Check the 'access' cookie
+            raw_token = request.COOKIES.get('access_token')
         else:
             raw_token = self.get_raw_token(header)
 

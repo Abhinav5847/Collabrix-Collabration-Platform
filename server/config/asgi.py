@@ -1,39 +1,34 @@
 import os
 import sys
 from pathlib import Path
-
-from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
-# 1. Ensure the path is set so it matches settings.py
+# 1. SETUP PATHS
+# Ensure 'apps' is in the python path so imports work correctly inside Docker
 BASE_DIR = Path(__file__).resolve().parent.parent
-if os.path.join(BASE_DIR, "apps") not in sys.path:
-    sys.path.insert(0, os.path.join(BASE_DIR, "apps"))
+apps_path = str(BASE_DIR / "apps")
+if apps_path not in sys.path:
+    sys.path.insert(0, apps_path)
 
+# 2. CONFIGURE DJANGO & INITIALIZE ASGI
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-
-# 2. Initialize the Django ASGI application FIRST
-# This loads the App Registry and makes models available
+# Important: Initialize the Django ASGI app BEFORE importing local apps/routing
 django_asgi_app = get_asgi_application()
 
-# 3. NOW import your custom code that depends on models/tasks
+# 3. LOCAL IMPORTS (These must come AFTER django_asgi_app)
 from channels.routing import ProtocolTypeRouter, URLRouter
-from workspaces.middleware import JWTAuthMiddleware
-from workspaces.routing import websocket_urlpatterns
+from apps.workspaces.middleware import JWTAuthMiddleware 
+from apps.workspaces.routing import websocket_urlpatterns 
 
+# 4. DEFINE APPLICATION
 application = ProtocolTypeRouter(
     {
+        # Handles standard HTTP requests
         "http": django_asgi_app,
-        "websocket": AllowedHostsOriginValidator(  
-            JWTAuthMiddleware(
-                URLRouter(websocket_urlpatterns)
-            )
+        
+        # Handles WebSocket connections with our Custom Cookie-JWT Middleware
+        "websocket": JWTAuthMiddleware(
+            URLRouter(websocket_urlpatterns)
         ),
     }
 )
-# application = ProtocolTypeRouter(
-#     {
-#         "http": django_asgi_app,
-#         "websocket": JWTAuthMiddleware(URLRouter(websocket_urlpatterns)),
-#     }
-# )

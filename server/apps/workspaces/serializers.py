@@ -40,11 +40,15 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
         if value == "OWNER":
             raise serializers.ValidationError("Cannot manually assign OWNER role.")
         return value
-
+    
 class WorkspaceMessageSerializer(serializers.ModelSerializer):
-    sender = serializers.ReadOnlyField(source="user.email")
-    message = serializers.ReadOnlyField(source="content")
-
+    # Mapping 'user.email' to 'sender' for the frontend
+    sender = serializers.CharField(source="user.email", read_only=True)
+    
+    # We keep 'content' as the primary field to match your React fetchHistory logic,
+    # but we can also provide 'message' as an alias if needed.
+    # To keep it simple, let's just use the real model field name: 'content'
+    
     class Meta:
         model = WorkspaceMessage
-        fields = ["id", "sender", "message", "timestamp"]
+        fields = ["id", "sender", "content", "timestamp"]

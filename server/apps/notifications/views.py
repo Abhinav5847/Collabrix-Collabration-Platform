@@ -40,7 +40,7 @@ class NotificationListView(APIView):
 
             return Response(
                 {"message": f"All {updated_count} notifications marked as read."},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_200_OK,  
             )
 
         except Notification.DoesNotExist:

@@ -32,7 +32,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG") == "True"
 
-# SECURITY WARNING: don't run with debug turned on in production!
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:4000",
+    "http://localhost:4000",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:4000",
+    "http://localhost:4000",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:80",
+    "http://localhost:80",
+]
+
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'http')
 
 
 ALLOWED_HOSTS = ["*"]
@@ -54,7 +75,7 @@ INSTALLED_APPS = [
     "apps.docs",
     "apps.notifications",
     "rest_framework",
-    # "corsheaders",
+    "corsheaders",
     'rest_framework_simplejwt.token_blacklist',
     "drf_spectacular",
     "django_celery_results",
@@ -62,7 +83,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -173,19 +194,19 @@ AUTHENTICATION_BACKENDS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # Use your custom cookie-aware class instead of the default
+        "apps.accounts.authenticate.CookieJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "10/day",        
-        "user": "1000/hour",     
-        "ai_action": "5/minute",
+        "anon": "100/day",
+        "user": "1000/hour",
+        "ai_action": "100/minute",
     },
 }
 
@@ -197,6 +218,14 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,  
     "BLACKLIST_AFTER_ROTATION": True, 
     "AUTH_HEADER_TYPES": ("Bearer",),
+
+    "AUTH_COOKIE": "access_token",       # The KeyError happened because this was missing
+    "AUTH_COOKIE_REFRESH": "refresh_token",
+    "AUTH_COOKIE_DOMAIN": None,     
+    "AUTH_COOKIE_SECURE": False,         # Set to True in production (HTTPS)
+    "AUTH_COOKIE_HTTP_ONLY": True,  
+    "AUTH_COOKIE_PATH": "/",        
+    "AUTH_COOKIE_SAMESITE": "Lax"
 }
 
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")

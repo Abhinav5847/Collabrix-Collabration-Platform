@@ -15,7 +15,8 @@ from .views import (
     UserProfileView,
     VerifyMFAView,
     VerifyOTPView,
-    SaveFCMTokenView
+    SaveFCMTokenView,
+    CookieTokenRefreshView
 )
 
 urlpatterns = [
@@ -23,7 +24,7 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
     
     # --- Token Management ---
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
     path("logout/", TokenBlacklistView.as_view(), name="token_blacklist"),
     # ------------------------
 
@@ -34,6 +35,6 @@ urlpatterns = [
     path("verify_mfa/", VerifyMFAView.as_view(), name="verify_mfa"),
     path("forgot_pass/", ForgotPassView.as_view(), name="forgot_pass"),
     path("reset_pass/<uidb64>/<token>/", ResetPassView.as_view(), name="Reset_pass"),
-    path("user/<int:pk>/", UserProfileView.as_view(), name="user-profile"),
+    path("user/profile/", UserProfileView.as_view(), name="user-profile"),
     path('update-fcm-token/', SaveFCMTokenView.as_view(), name='update-fcm-token'),
 ]

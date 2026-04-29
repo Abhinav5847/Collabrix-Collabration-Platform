@@ -22,10 +22,10 @@ from drf_spectacular.views import (SpectacularAPIView, SpectacularRedocView,
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("accounts/", include("apps.accounts.urls")),
-    path("workspaces/", include("apps.workspaces.urls")),
-    path("documents/", include("apps.docs.urls")),
-    path("notifications/", include("apps.notifications.urls")),
+    path("api/accounts/", include("apps.accounts.urls")),
+    path("api/workspaces/", include("apps.workspaces.urls")),
+    path("api/documents/", include("apps.docs.urls")),
+    path("api/notifications/", include("apps.notifications.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
