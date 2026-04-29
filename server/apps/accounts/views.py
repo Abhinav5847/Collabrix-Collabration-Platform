@@ -152,6 +152,20 @@ class LoginView(APIView):
         response = Response({"message": "Login successful", "user_id": user.id}, status=200)
         return set_auth_cookies(response, refresh)
 
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
+        
+        # Clear the cookies by setting them to expire immediately
+        response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
+        response.delete_cookie('refresh_token') # Or whatever your refresh cookie name is
+        
+        # Optional: If you use Django's standard session as well
+        from django.contrib.auth import logout
+        logout(request)
+        
+        return response        
+
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []

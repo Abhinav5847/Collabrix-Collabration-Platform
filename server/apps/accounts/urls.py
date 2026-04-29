@@ -1,8 +1,5 @@
 from django.urls import path
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-    TokenBlacklistView,
-)
+
 
 from .views import (
     EnableMfaView,
@@ -16,7 +13,8 @@ from .views import (
     VerifyMFAView,
     VerifyOTPView,
     SaveFCMTokenView,
-    CookieTokenRefreshView
+    CookieTokenRefreshView,
+    LogoutView
 )
 
 urlpatterns = [
@@ -25,7 +23,7 @@ urlpatterns = [
     
     # --- Token Management ---
     path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
-    path("logout/", TokenBlacklistView.as_view(), name="token_blacklist"),
+    path("logout/", LogoutView.as_view(), name="token_blacklist"),
     # ------------------------
 
     path("verify_otp/", VerifyOTPView.as_view(), name="verify_otp"),

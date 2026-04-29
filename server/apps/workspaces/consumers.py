@@ -1,7 +1,6 @@
 import json
-from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import WorkSpace, WorkspaceMessage
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 class WorkspaceChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -9,80 +8,64 @@ class WorkspaceChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f"chat_{self.workspace_id}"
         self.user = self.scope.get("user")
 
-        print(f"🔌 WS Attempt: User {self.user} -> Workspace {self.workspace_id}")
-
         if self.user and self.user.is_authenticated:
-            # Join room group
-            await self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
             await self.accept()
-            print(f"✅ WS Connected: {self.user.email}")
         else:
-            print(f"🚫 WS Rejected: Anonymous User")
+            # Reject connection if user is not logged in
             await self.close()
 
     async def disconnect(self, close_code):
-        # Leave room group
         if hasattr(self, 'room_group_name'):
-            await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name
-            )
-        print(f"❌ WS Disconnected: Code {close_code}")
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        """
-        Called when React sends a message.
-        """
-        try:
-            data = json.loads(text_data)
-            message_text = data.get("message")
+        data = json.loads(text_data)
+        message_content = data.get("message")
+        user = self.scope["user"]
 
-            if not message_text:
-                return
+        if user.is_authenticated and message_content:
+            # 1. Save to Database
+            await self.save_message(user, self.workspace_id, message_content)
 
-            # 1. PERSISTENCE: Save to PostgreSQL
-            await self.save_message(message_text)
+            # 2. Trigger Mention Task (Corrected Path)
+            try:
+                # We point this to where your task file is actually located
+                from apps.notifications.tasks import process_chat_mention_task
+                process_chat_mention_task.delay(message_content, user.id, self.workspace_id)
+            except ImportError as e:
+                print(f"❌ Could not find task in apps.notifications.tasks: {e}")
 
-            # 2. REAL-TIME: Broadcast to others in the room
+            # 3. Broadcast Live to Room
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "chat_message",
-                    "message": message_text,
-                    "sender": self.user.email,
-                }
+                    "message": message_content,
+                    "sender": user.email,
+                },
             )
-        except Exception as e:
-            print(f"⚠️ Receive Error: {e}")
-
-    @database_sync_to_async
-    def save_message(self, content):
-        """
-        Saves the message to the WorkspaceMessage model.
-        """
-        try:
-            # Get the workspace instance
-            workspace = WorkSpace.objects.get(id=self.workspace_id)
-            
-            # Create the message record
-            return WorkspaceMessage.objects.create(
-                workspace=workspace,
-                user=self.user,
-                content=content
-            )
-        except WorkSpace.DoesNotExist:
-            print(f"❌ Error: Workspace {self.workspace_id} not found.")
-        except Exception as e:
-            print(f"❌ Database Save Error: {e}")
 
     async def chat_message(self, event):
-        """
-        Sends the broadcasted message to the browser.
-        """
-        await self.send(text_data=json.dumps({
-            "message": event["message"],
-            "sender": event["sender"],
-        }))
+        """Sends the message to the React frontend."""
+        await self.send(
+            text_data=json.dumps(
+                {"message": event["message"], "sender": event["sender"]}
+            )
+        )
+
+    @database_sync_to_async
+    def save_message(self, user, workspace_id, content):
+        # Local imports inside the method prevent circular dependency issues
+        from apps.workspaces.models import WorkSpace, WorkspaceMessage
+
+        try:
+            workspace = WorkSpace.objects.get(id=workspace_id)
+            return WorkspaceMessage.objects.create(
+                workspace=workspace, 
+                user=user, 
+                content=content
+            )
+        except Exception as e:
+            print(f"❌ Database error in save_message: {e}")
+            return None
