@@ -24,30 +24,39 @@ const UserLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // 1. Attempt Login
     const resultAction = await dispatch(loginUser(form));
 
     if (loginUser.fulfilled.match(resultAction)) {
       toast.success("Login Successful!");
 
-      // 1. Get userId from response (Cookies are already handled by the browser/Axios)
+      try {
+        /**
+         * 2. SYNC FCM TOKEN
+         * CRITICAL: We call this AFTER login is fulfilled.
+         * The browser now has the HTTP-only cookie, so when sendFCMTokenToBackend
+         * makes its API call, Django will know which user it is.
+         */
+        await sendFCMTokenToBackend(); 
+        console.log("FCM registration triggered successfully.");
+      } catch (err) {
+        // We catch this so a Firebase error doesn't block the user from entering the app
+        console.error("FCM sync failed during login:", err);
+      }
+
+      // 3. Fetch profile if needed (though usually handled in Layout)
       const userId = resultAction.payload.user?.id || resultAction.payload.id;
-      
       if (userId) {
         await dispatch(fetchUserProfile(userId));
       }
 
-      // 2. Send FCM token (No need to pass accessToken anymore)
-      try {
-        await sendFCMTokenToBackend(); 
-      } catch (err) {
-        console.error("FCM failed:", err);
-      }
-
+      // 4. Redirect
       setTimeout(() => {
         navigate("/");
       }, 1000);
 
     } else {
+      // Error handling
       const message = resultAction.payload || "Invalid email or password";
       const errorMsg = typeof message === 'object' 
         ? Object.values(message).flat().join(", ") 

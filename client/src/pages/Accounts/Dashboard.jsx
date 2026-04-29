@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ArrowRight, LayoutGrid, Clock, Users, FolderOpen, RefreshCw, AlertCircle, FileText, MessageSquare, Settings } from 'lucide-react';
+import { Plus, ArrowRight, FolderOpen, RefreshCw, AlertCircle, FileText, MessageSquare, Users } from 'lucide-react';
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 
 const COLORS = ['#2563eb','#0891b2','#7c3aed','#059669','#dc2626','#d97706'];
@@ -12,9 +12,13 @@ export default function Dashboard() {
     const navigate = useNavigate();
     const { list: workspaces, loading, error } = useSelector((s) => s.workspaces);
 
-    useEffect(() => { dispatch(fetchWorkspaces()); }, [dispatch]);
+    useEffect(() => { 
+        if (workspaces.length === 0) {
+            dispatch(fetchWorkspaces()); 
+        }
+    }, [dispatch, workspaces.length]);
 
-    if (loading) return (
+    if (loading && workspaces.length === 0) return (
         <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '60vh', gap: 12 }}>
             <div className="spinner-border text-primary" />
             <small className="text-muted">Loading your Collabrix environment…</small>
@@ -82,7 +86,6 @@ export default function Dashboard() {
                                         <Users size={14} className="text-info" /> <span className="small fw-semibold">Team</span>
                                     </button>
                                 </div>
-
                             </div>
 
                             <div className="mt-auto pt-2 border-top d-flex justify-content-between align-items-center">
@@ -94,5 +97,5 @@ export default function Dashboard() {
                 ))}
             </div>
         </div>
-    );
+    ); 
 }

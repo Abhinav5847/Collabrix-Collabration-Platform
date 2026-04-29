@@ -7,9 +7,9 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { fetchUserProfile, logout } from '../../store/slices/authSlice';
+import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 
 export default function WorkspaceLayout() {
-    const [workspaces, setWorkspaces] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     
@@ -17,21 +17,20 @@ export default function WorkspaceLayout() {
     const location = useLocation();
     const dispatch = useDispatch();
 
+    // Pulling data from Redux instead of local state to ensure sync
     const { user } = useSelector((state) => state.auth);
+    const { list: workspaces } = useSelector((state) => state.workspaces);
 
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // 1. Fetch Workspaces (Cookies sent automatically)
-                const wsRes = await api.get('workspaces/');
-                setWorkspaces(wsRes.data);
-
-                // 2. Fetch Profile if missing (No jwtDecode needed)
+                // 1. Fetch Profile if missing
                 if (!user) {
                     await dispatch(fetchUserProfile()).unwrap();
                 }
+                // 2. Fetch Workspaces into Redux
+                await dispatch(fetchWorkspaces()).unwrap();
             } catch (err) {
-                // If the interceptor failed to refresh, we redirect to login
                 if (err.response?.status === 401) {
                     dispatch(logout());
                     navigate('/login');
@@ -40,13 +39,12 @@ export default function WorkspaceLayout() {
                 setLoading(false);
             }
         };
-
         fetchInitialData();
-    }, [navigate, dispatch]); // user removed from deps to prevent loops
+    }, [dispatch, navigate]);
 
     const handleLogout = async () => {
         try {
-            await api.post('accounts/logout/'); // Tell backend to clear cookies
+            await api.post('accounts/logout/'); 
         } catch (e) {
             console.error("Logout failed", e);
         } finally {
@@ -83,9 +81,7 @@ export default function WorkspaceLayout() {
                 <Link to="/" style={{ textDecoration: 'none', marginBottom: '8px' }}>
                     <div style={{ width: '40px', height: '40px', background: '#2563eb', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '15px', letterSpacing: '-0.5px', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}>CX</div>
                 </Link>
-
                 <div style={{ width: '28px', height: '1px', background: '#1e293b', margin: '4px 0' }} />
-
                 <div style={{ flex: 1, overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '0 10px' }}>
                     {workspaces.map(ws => {
                         const active = location.pathname.startsWith(`/workspace/${ws.id}`);
@@ -96,12 +92,10 @@ export default function WorkspaceLayout() {
                             </Link>
                         );
                     })}
-
                     <Link to="/workspace/create" title="New Workspace" style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1.5px dashed #334155', color: '#475569', textDecoration: 'none', transition: 'all 0.15s ease' }}>
                         <Plus size={16} />
                     </Link>
                 </div>
-
                 <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
                     <div title={user?.username} style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '13px', cursor: 'default' }}>{avatarInitial}</div>
                 </div>
@@ -117,7 +111,6 @@ export default function WorkspaceLayout() {
                             <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Workspace Platform</p>
                         </div>
                     </div>
-
                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
                         <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 8px 8px', padding: 0 }}>Main</p>
                         <NavItem to="/" icon={<LayoutDashboard size={16} />} label="Dashboard" active={isActive('/')} />
@@ -126,25 +119,22 @@ export default function WorkspaceLayout() {
                         <NavItem to="/profile" icon={<CircleUserRound size={16} />} label="Profile" active={isActive('/profile')} />
                         <NavItem to="/settings" icon={<Settings size={16} />} label="Settings" active={isActive('/settings')} />
                     </div>
-
                     <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
                         <div className="dropdown">
                             <div data-bs-toggle="dropdown" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', transition: 'background 0.15s', background: '#f8fafc' }}>
                                 <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>{avatarInitial}</div>
                                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {user?.username || 'User'}
-                                    </p>
+                                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username || 'User'}</p>
                                 </div>
                                 <ChevronRight size={14} color="#94a3b8" />
                             </div>
                             <ul className="dropdown-menu shadow-lg border-0" style={{ borderRadius: '12px', padding: '6px', minWidth: '200px', fontSize: '13px' }}>
-                                <li><h6 className="dropdown-header" style={{ fontSize: '10px', letterSpacing: '0.5px' }}>MY ACCOUNT</h6></li>
-                                <li><Link className="dropdown-item" to="/profile" style={{ borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}><User size={14} /> View Profile</Link></li>
-                                <li><Link className="dropdown-item" to="/settings" style={{ borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}><Settings size={14} /> Settings</Link></li>
-                                <li><hr className="dropdown-divider" style={{ margin: '4px 0' }} /></li>
+                                <li><h6 className="dropdown-header">MY ACCOUNT</h6></li>
+                                <li><Link className="dropdown-item" to="/profile"><User size={14} /> View Profile</Link></li>
+                                <li><Link className="dropdown-item" to="/settings"><Settings size={14} /> Settings</Link></li>
+                                <li><hr className="dropdown-divider" /></li>
                                 <li>
-                                    <button className="dropdown-item text-danger" onClick={handleLogout} style={{ borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontWeight: 600, width: '100%', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                    <button className="dropdown-item text-danger" onClick={handleLogout} style={{ fontWeight: 600, width: '100%', textAlign: 'left', border: 'none', background: 'none' }}>
                                         <LogOut size={14} /> Log Out
                                     </button>
                                 </li>
@@ -161,7 +151,6 @@ export default function WorkspaceLayout() {
                         <button onClick={() => setSidebarCollapsed(p => !p)} style={{ width: '34px', height: '34px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
                             <ChevronsLeft size={16} style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                         </button>
-
                         <nav aria-label="breadcrumb">
                             <ol style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0, padding: 0, listStyle: 'none' }}>
                                 <li><Link to="/" style={{ fontSize: '13px', color: '#94a3b8', textDecoration: 'none', fontWeight: 500 }}>Collabrix</Link></li>
@@ -170,33 +159,20 @@ export default function WorkspaceLayout() {
                             </ol>
                         </nav>
                     </div>
-
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button 
-                            onClick={() => navigate('/notifications')} 
-                            style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', position: 'relative' }}
-                        >
+                        <button onClick={() => navigate('/notifications')} style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', position: 'relative' }}>
                             <Bell size={16} />
                             <span style={{ position: 'absolute', top: '7px', right: '7px', width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', border: '1.5px solid #fff' }} />
                         </button>
-
-                        {user ? (
-                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '4px 12px 4px 6px' }}>
+                        {user && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '4px 12px 4px 6px' }}>
                                 <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '11px' }}>{avatarInitial}</div>
-                                <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151', marginRight: '8px' }}>{user?.username}</span>
-                                <LogOut size={14} style={{cursor: 'pointer', color: '#ef4444'}} onClick={handleLogout} />
-                             </div>
-                        ) : (
-                            <button 
-                                onClick={() => navigate('/login')}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '9px', padding: '6px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-                            >
-                                <LogIn size={16} /> Login
-                            </button>
+                                <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151' }}>{user.username}</span>
+                                <LogOut size={14} style={{cursor: 'pointer', color: '#ef4444', marginLeft: '4px'}} onClick={handleLogout} />
+                            </div>
                         )}
                     </div>
                 </header>
-
                 <main style={{ flex: 1, overflowY: 'auto', padding: '28px 32px', background: '#f1f5f9' }}>
                     <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
                         <Outlet />
