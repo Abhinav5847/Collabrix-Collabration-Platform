@@ -1,44 +1,44 @@
 import React, { useState, useEffect, useRef } from "react";
+import { aiApi } from "../../services/aiApi"; 
 
-const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
+const CollabrixChat = ({ docId, workspaceId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const scrollRef = useRef(null);
 
-  // --- THE CRITICAL FIX ---
-  // We now point to the Nginx Gateway (Port 80) 
-  // Nginx handles the /ai/ prefix and forwards it to port 8001 internally.
-  const GATEWAY_URL = "http://localhost/ai";
-
-  // 1. Load History on Mount
+  // 1. Sync with the new backend route: /ai/history/{doc_id}
   useEffect(() => {
     const loadSavedHistory = async () => {
       if (!docId) return;
       try {
-        const res = await fetch(`${GATEWAY_URL}/chat/history/${docId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const formattedMessages = data.history.map(item => ({
+        setHistoryLoading(true);
+        // Note: baseURL is already /ai/, so we just call 'history/{id}'
+        const res = await aiApi.get(`history/${docId}`);
+        if (res.data?.history) {
+          // Slice to the last 10 messages to keep the UI light
+          const recent = res.data.history.slice(-10).map(item => ({
             role: item.role,
             content: item.content
           }));
-          setMessages(formattedMessages);
+          setMessages(recent);
         }
       } catch (err) {
-        console.error("History Load Error:", err);
+        console.error("Failed to load chat history:", err);
+      } finally {
+        setHistoryLoading(false);
       }
     };
-
     loadSavedHistory();
   }, [docId]);
 
-  // 2. Auto-scroll
+  // 2. Optimized Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   // 3. Send Message Logic
   const sendMessage = async (e) => {
@@ -47,115 +47,116 @@ const CollabrixChat = ({ docId = "1", workspaceId = "1" }) => {
     if (!userMsg || isLoading) return;
 
     setInput("");
-    const newUserMessage = { role: "user", content: userMsg };
-    setMessages((prev) => [...prev, newUserMessage]);
+    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${GATEWAY_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMsg,
-          workspace_id: String(workspaceId),
-          doc_id: String(docId),
-        }),
+      // Calling /ai/chat
+      const res = await aiApi.post("chat", {
+        message: userMsg,
+        workspace_id: String(workspaceId),
+        doc_id: String(docId),
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Server Error: ${res.status}`);
-      }
-
-      const data = await res.json();
       setMessages((prev) => [
         ...prev,
-        { role: "ai", content: data?.response || "I processed the request but have no response." }
+        { role: "ai", content: res.data?.response || "I couldn't process that." }
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "ai", content: `⚠️ ${err.message}` }
+        { role: "ai", content: `⚠️ Error: ${err.response?.data?.detail || "Service Unavailable"}` }
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      sendMessage(e);
-    }
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f5f4f0", borderRadius: "12px", border: "1px solid #ddd", overflow: "hidden" }}>
+    <div style={{ 
+      display: "flex", flexDirection: "column", height: "100%", 
+      width: "100%", background: "#fdfdfd", borderLeft: "1px solid #eee" 
+    }}>
       {/* HEADER */}
-      <div style={{ background: "#1a1a1a", padding: "12px 20px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: "bold", fontSize: "14px" }}>Collabrix AI Chat</span>
-        <span style={{ fontSize: "10px", opacity: 0.6 }}>Doc: {docId}</span>
+      <div style={{ 
+        background: "#ffffff", padding: "12px 20px", color: "#000", 
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        borderBottom: "1px solid #eee"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ width: "8px", height: "8px", background: "#10a37f", borderRadius: "50%" }}></div>
+          <span style={{ fontWeight: "700", fontSize: "14px" }}>AI ASSISTANT</span>
+        </div>
+        <span style={{ fontSize: "10px", color: "#999", fontWeight: "600" }}>ID: {docId}</span>
       </div>
 
-      {/* CHAT WINDOW */}
+      {/* CHAT AREA */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
-        {messages.length === 0 && !isLoading && (
-          <div style={{ margin: "auto", color: "#999", textAlign: "center", fontSize: "13px" }}>
-            Ask anything about this document...
+        {historyLoading ? (
+            <div style={{ margin: "auto", fontSize: "12px", color: "#999" }}>Loading conversation...</div>
+        ) : messages.length === 0 ? (
+          <div style={{ margin: "auto", textAlign: "center", color: "#ccc" }}>
+            <p style={{ fontSize: "12px" }}>Ask a question about this doc</p>
           </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-            <div style={{
-              maxWidth: "80%",
-              padding: "10px 14px",
-              borderRadius: "15px",
-              background: msg.role === "user" ? "#000" : "#fff",
-              color: msg.role === "user" ? "#fff" : "#000",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              fontSize: "14px",
-              lineHeight: "1.5",
-              border: msg.role === "ai" ? "1px solid #eee" : "none"
-            }}>
-              {msg.content}
+        ) : (
+          messages.map((msg, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{
+                maxWidth: "85%",
+                padding: "10px 14px",
+                borderRadius: "12px",
+                background: msg.role === "user" ? "#007bff" : "#f1f1f1",
+                color: msg.role === "user" ? "#fff" : "#222",
+                fontSize: "13.5px",
+                lineHeight: "1.5",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+              }}>
+                {msg.content}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
 
         {isLoading && (
-          <div style={{ color: "#777", fontSize: "12px", fontStyle: "italic", paddingLeft: "5px" }}>
-            Thinking...
+          <div style={{ display: "flex", gap: "4px", padding: "8px" }}>
+             <span className="ai-typing" style={{ color: "#007bff", fontSize: "11px", fontWeight: "bold" }}>AI is analyzing...</span>
           </div>
         )}
       </div>
 
-      {/* INPUT AREA */}
-      <div style={{ padding: "15px", background: "#fff", borderTop: "1px solid #ddd" }}>
-        <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px" }}>
+      {/* INPUT BAR */}
+      <div style={{ padding: "16px", background: "#fff", borderTop: "1px solid #f0f0f0" }}>
+        <form onSubmit={sendMessage} style={{ display: "flex", gap: "8px" }}>
           <input
-            style={{ flex: 1, padding: "10px 15px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "14px" }}
+            style={{ 
+              flex: 1, padding: "10px 14px", background: "#f8f9fa", 
+              border: "1px solid #e9ecef", borderRadius: "8px", outline: "none", fontSize: "13px" 
+            }}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Type your message..."
+            placeholder="Ask anything..."
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
             style={{
-              padding: "0 20px",
-              background: isLoading || !input.trim() ? "#ccc" : "#000",
+              padding: "0 16px",
+              background: "#000",
               color: "#fff",
               border: "none",
               borderRadius: "8px",
               cursor: "pointer",
-              fontWeight: "600"
+              opacity: (isLoading || !input.trim()) ? 0.4 : 1
             }}
           >
-            Send
+            →
           </button>
         </form>
       </div>
+      <style>{`
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        .ai-typing { animation: pulse 1s infinite; }
+      `}</style>
     </div>
   );
 };

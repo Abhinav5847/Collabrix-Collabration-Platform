@@ -42,7 +42,7 @@ api.interceptors.response.use(
 
       try {
         // Hits: http://127.0.0.1:4000/api/accounts/token/refresh/
-        const res = await api.post("accounts/token/refresh/");
+        const res = await api.post("accounts/token/refresh/",{});
 
         if (res.status === 200) {
           /**

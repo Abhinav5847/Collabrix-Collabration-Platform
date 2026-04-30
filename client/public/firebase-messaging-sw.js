@@ -19,8 +19,7 @@ messaging.onBackgroundMessage(function (payload) {
 
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: "/logo192.png", // Make sure this icon exists in public folder
+    body: payload.notification.body, // Make sure this icon exists in public folder
     data: { url: "/" }     // The URL to open when clicked
   };
 
