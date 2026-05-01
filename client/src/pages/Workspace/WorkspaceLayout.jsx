@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
     LayoutDashboard, Shield, Bell, ChevronRight, LogOut, 
-    User, Settings, Plus, ChevronsLeft, Building2, CircleUserRound, LogIn 
+    User, Plus, ChevronsLeft, Building2, CircleUserRound, Grid2X2
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { fetchUserProfile, logout } from '../../store/slices/authSlice';
@@ -12,24 +12,27 @@ import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 export default function WorkspaceLayout() {
     const [loading, setLoading] = useState(true);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
     
     const navigate = useNavigate();
     const location = useLocation();
     const dispatch = useDispatch();
 
-    // Pulling data from Redux instead of local state to ensure sync
     const { user } = useSelector((state) => state.auth);
     const { list: workspaces } = useSelector((state) => state.workspaces);
 
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // 1. Fetch Profile if missing
                 if (!user) {
                     await dispatch(fetchUserProfile()).unwrap();
                 }
-                // 2. Fetch Workspaces into Redux
                 await dispatch(fetchWorkspaces()).unwrap();
+                
+                // Fetch unread notifications count from Django
+                const notifyRes = await api.get('notifications/');
+                const unread = notifyRes.data.filter(n => !n.is_read).length;
+                setUnreadCount(unread);
             } catch (err) {
                 if (err.response?.status === 401) {
                     dispatch(logout());
@@ -40,7 +43,7 @@ export default function WorkspaceLayout() {
             }
         };
         fetchInitialData();
-    }, [dispatch, navigate]);
+    }, [dispatch, navigate, user]);
 
     const handleLogout = async () => {
         try {
@@ -58,8 +61,9 @@ export default function WorkspaceLayout() {
     const getPageTitle = () => {
         if (location.pathname === '/') return 'Dashboard';
         if (location.pathname === '/enable_Mfa') return 'Security Settings';
+        if (location.pathname === '/profile') return 'Profile';
         if (location.pathname.includes('/workspace/create')) return 'Create Workspace';
-        if (location.pathname.includes('/workspace/')) return 'Workspace';
+        if (location.pathname.includes('/workspace/')) return 'Workspace View';
         return 'Collabrix';
     };
 
@@ -76,49 +80,55 @@ export default function WorkspaceLayout() {
     return (
         <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', background: '#f1f5f9', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-            {/* ── LEFT RAIL ── */}
-            <aside style={{ width: '64px', minWidth: '64px', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: '8px', borderRight: '1px solid #1e293b', zIndex: 100 }}>
-                <Link to="/" style={{ textDecoration: 'none', marginBottom: '8px' }}>
-                    <div style={{ width: '40px', height: '40px', background: '#2563eb', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '15px', letterSpacing: '-0.5px', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}>CX</div>
-                </Link>
-                <div style={{ width: '28px', height: '1px', background: '#1e293b', margin: '4px 0' }} />
-                <div style={{ flex: 1, overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '0 10px' }}>
-                    {workspaces.map(ws => {
-                        const active = location.pathname.startsWith(`/workspace/${ws.id}`);
-                        return (
-                            <Link key={ws.id} to={`/workspace/${ws.id}`} title={ws.name} style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px', textDecoration: 'none', background: active ? '#2563eb' : '#1e293b', color: active ? '#fff' : '#94a3b8', border: active ? '1px solid #3b82f6' : '1px solid transparent', transition: 'all 0.15s ease', position: 'relative', flexShrink: 0 }}>
-                                {ws.name.substring(0, 2).toUpperCase()}
-                                {active && <div style={{ position: 'absolute', left: '-10px', top: '50%', transform: 'translateY(-50%)', width: '3px', height: '20px', background: '#60a5fa', borderRadius: '0 3px 3px 0' }} />}
-                            </Link>
-                        );
-                    })}
-                    <Link to="/workspace/create" title="New Workspace" style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1.5px dashed #334155', color: '#475569', textDecoration: 'none', transition: 'all 0.15s ease' }}>
-                        <Plus size={16} />
-                    </Link>
-                </div>
-                <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
-                    <div title={user?.username} style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '13px', cursor: 'default' }}>{avatarInitial}</div>
-                </div>
-            </aside>
-
-            {/* ── SECONDARY SIDEBAR ── */}
-            <nav style={{ width: sidebarCollapsed ? '0px' : '240px', minWidth: sidebarCollapsed ? '0px' : '240px', background: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden', zIndex: 90 }}>
-                <div style={{ width: '240px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Building2 size={18} color="#2563eb" strokeWidth={2} />
+            {/* ── CONSOLIDATED SIDEBAR ── */}
+            <nav style={{ 
+                width: sidebarCollapsed ? '0px' : '260px', 
+                minWidth: sidebarCollapsed ? '0px' : '260px', 
+                background: '#ffffff', 
+                borderRight: '1px solid #e2e8f0', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                transition: 'all 0.2s ease', 
+                overflow: 'hidden', 
+                zIndex: 90 
+            }}>
+                <div style={{ width: '260px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    {/* Brand Header */}
+                    <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', background: '#2563eb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '12px' }}>CX</div>
                         <div>
-                            <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#0f172a', letterSpacing: '-0.2px' }}>Collabrix</p>
-                            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Workspace Platform</p>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>Collabrix</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>Workspace Platform</p>
                         </div>
                     </div>
+
                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
-                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 8px 8px', padding: 0 }}>Main</p>
+                        {/* Main Section */}
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 8px 8px' }}>Main</p>
                         <NavItem to="/" icon={<LayoutDashboard size={16} />} label="Dashboard" active={isActive('/')} />
-                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '20px 8px 8px', padding: 0 }}>Administration</p>
-                        <NavItem to="/enable_Mfa" icon={<Shield size={16} />} label="Security" active={isActive('/enable_Mfa')} />
                         <NavItem to="/profile" icon={<CircleUserRound size={16} />} label="Profile" active={isActive('/profile')} />
-                        <NavItem to="/settings" icon={<Settings size={16} />} label="Settings" active={isActive('/settings')} />
+                        <NavItem to="/enable_Mfa" icon={<Shield size={16} />} label="Security" active={isActive('/enable_Mfa')} />
+
+                        {/* Workspaces Section - Integrated Page Links */}
+                        <div style={{ marginTop: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 8px 8px' }}>
+                                <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: 0 }}>Workspaces</p>
+                                <Link to="/workspace/create" style={{ color: '#2563eb' }}><Plus size={14} /></Link>
+                            </div>
+                            
+                            {workspaces.map(ws => (
+                                <NavItem 
+                                    key={ws.id} 
+                                    to={`/workspace/${ws.id}`} 
+                                    icon={<Grid2X2 size={16} />} 
+                                    label={ws.name} 
+                                    active={location.pathname === `/workspace/${ws.id}`} 
+                                />
+                            ))}
+                        </div>
                     </div>
+
+                    {/* Bottom User Profile */}
                     <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
                         <div className="dropdown">
                             <div data-bs-toggle="dropdown" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', transition: 'background 0.15s', background: '#f8fafc' }}>
@@ -131,7 +141,6 @@ export default function WorkspaceLayout() {
                             <ul className="dropdown-menu shadow-lg border-0" style={{ borderRadius: '12px', padding: '6px', minWidth: '200px', fontSize: '13px' }}>
                                 <li><h6 className="dropdown-header">MY ACCOUNT</h6></li>
                                 <li><Link className="dropdown-item" to="/profile"><User size={14} /> View Profile</Link></li>
-                                <li><Link className="dropdown-item" to="/settings"><Settings size={14} /> Settings</Link></li>
                                 <li><hr className="dropdown-divider" /></li>
                                 <li>
                                     <button className="dropdown-item text-danger" onClick={handleLogout} style={{ fontWeight: 600, width: '100%', textAlign: 'left', border: 'none', background: 'none' }}>
@@ -162,7 +171,16 @@ export default function WorkspaceLayout() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button onClick={() => navigate('/notifications')} style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', position: 'relative' }}>
                             <Bell size={16} />
-                            <span style={{ position: 'absolute', top: '7px', right: '7px', width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', border: '1.5px solid #fff' }} />
+                            {unreadCount > 0 && (
+                                <span style={{ 
+                                    position: 'absolute', top: '-4px', right: '-4px', minWidth: '18px', height: '18px', 
+                                    padding: '0 4px', borderRadius: '10px', background: '#ef4444', color: '#fff',
+                                    fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', 
+                                    justifyContent: 'center', border: '2px solid #fff' 
+                                }}>
+                                    {unreadCount}
+                                </span>
+                            )}
                         </button>
                         {user && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '4px 12px 4px 6px' }}>
@@ -187,7 +205,7 @@ function NavItem({ to, icon, label, active }) {
     return (
         <Link to={to} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '9px', textDecoration: 'none', fontSize: '13.5px', fontWeight: active ? 600 : 500, color: active ? '#1d4ed8' : '#475569', background: active ? '#eff6ff' : 'transparent', marginBottom: '2px', transition: 'all 0.15s ease' }}>
             <span style={{ color: active ? '#2563eb' : '#94a3b8', display: 'flex' }}>{icon}</span>
-            {label}
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
             {active && <div style={{ marginLeft: 'auto', width: '6px', height: '6px', borderRadius: '50%', background: '#2563eb' }} />}
         </Link>
     );

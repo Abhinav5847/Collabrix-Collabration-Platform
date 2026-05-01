@@ -25,6 +25,8 @@ import NotificationsPage from './pages/notification/NotificationList';
 import WorkspaceMembers from './pages/Workspace/WorkspaceMembers';
 import AgentTestPage from './pages/ai/AgentTestPage';
 import JoinWorkspace from './pages/Workspace/JoinWorkspace';
+import WorkspaceManagePage from './pages/Workspace/WorkSpaceSettings';
+import Profile from './pages/Accounts/UserProfile';
 
 
 function App() {
@@ -45,9 +47,11 @@ function App() {
         <Route path="/google/callback" element={<GoogleCallback/>} />
     
         <Route element={<WorkspaceLayout/>}>
+          <Route path="/profile" element={<Profile/>} />
           <Route path="/" element={<Dashboard/>} />
           <Route path="/workspace/:id" element={<WorkspaceDetail/>} />
           <Route path="/workspace/create" element={<CreateWorkspace/>} />
+          <Route path="/workspace/:id/manage" element={<WorkspaceManagePage/>} />
           <Route path="/enable_Mfa" element={<EnableMFA/>} />
           <Route path="/verify_Mfa" element={<VerifyMFA/>} />
           <Route path="/workspace/:workspaceId/chat" element={<WorkspaceChat/>} />

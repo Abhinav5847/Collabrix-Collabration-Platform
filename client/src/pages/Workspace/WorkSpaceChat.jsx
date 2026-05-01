@@ -11,13 +11,11 @@ const WorkspaceChat = () => {
     const socketRef = useRef(null);
     const scrollRef = useRef(null);
 
-    // 1. Fetch History from Database (Persistent Storage)
     const fetchHistory = useCallback(async () => {
         if (!workspaceId) return;
         try {
             const response = await api.get(`workspaces/${workspaceId}/messages/`);
             
-            // Normalize history: maps backend 'content' or 'message' to local 'message'
             const normalizedHistory = response.data.map(msg => ({
                 message: msg.content || msg.message, 
                 sender: msg.sender || msg.user_email || msg.user, 
@@ -34,12 +32,10 @@ const WorkspaceChat = () => {
         fetchHistory();
     }, [fetchHistory]);
 
-    // 2. Auto-Scroll to Bottom on new messages
     useEffect(() => {
         scrollRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // 3. WebSocket Connection (Live Communication)
     useEffect(() => {
         if (!workspaceId) return;
 

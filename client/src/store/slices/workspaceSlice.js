@@ -14,6 +14,30 @@ export const fetchWorkspaces = createAsyncThunk(
     }
 );
 
+export const updateWorkspace = createAsyncThunk(
+    'workspaces/update',
+    async ({ id, formData }, { rejectWithValue }) => {
+        try {
+            const response = await api.put(`workspaces/${id}/`, formData);
+            return response.data;
+        } catch (err) {
+            return rejectWithValue(err.response?.data || "Update failed");
+        }
+    }
+);
+
+export const deleteWorkspace = createAsyncThunk(
+    'workspaces/delete',
+    async (id, { rejectWithValue }) => {
+        try {
+            await api.delete(`workspaces/${id}/`);
+            return id;
+        } catch (err) {
+            return rejectWithValue(err.response?.data || "Delete failed");
+        }
+    }
+);
+
 export const createWorkspace = createAsyncThunk(
     'workspaces/create',
     async (formData, { rejectWithValue }) => {
@@ -33,6 +57,7 @@ const workspaceSlice = createSlice({
         loading: false,
         status: 'idle', 
         error: null,
+        toast: null,
     },
     reducers: {
         resetStatus: (state) => {
@@ -64,9 +89,21 @@ const workspaceSlice = createSlice({
             .addCase(createWorkspace.rejected, (state, action) => {
                 state.status = 'failed';
                 state.error = action.payload;
+            })
+            .addCase(updateWorkspace.fulfilled, (state, action) => {
+                const index = state.list.findIndex(ws => ws.id === action.payload.id);
+                if (index !== -1) state.list[index] = action.payload;
+                state.toast = { type: 'success', text: 'Workspace updated successfully' };
+            })
+            .addCase(deleteWorkspace.fulfilled, (state, action) => {
+                state.list = state.list.filter(ws => ws.id !== action.payload);
+                state.toast = { type: 'success', text: 'Workspace deleted' };
+            })
+            .addCase(deleteWorkspace.rejected, (state, action) => {
+                state.toast = { type: 'error', text: action.payload };
             });
     },
 });
 
-export const { resetStatus } = workspaceSlice.actions;
+export const { clearToast } = workspaceSlice.actions;
 export default workspaceSlice.reducer;
