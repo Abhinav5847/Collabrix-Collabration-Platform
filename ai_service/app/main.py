@@ -26,12 +26,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️ Qdrant failed: {e}")
 
-    # 2. DynamoDB: RAG Table (Keeping your existing logic)
+    # 2. DynamoDB Setup
     try:
         from app.services.memory import dynamodb
         client = dynamodb.meta.client
         
-        # --- RAG TABLE (DO NOT REMOVE) ---
         try:
             dynamodb.create_table(
                 TableName='Collabrix_AiChat_History',
@@ -64,18 +63,19 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# Restore CORS
+# FIXED: CORS for HttpOnly Cookies
+# When allow_credentials=True, allow_origins CANNOT be ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000","http://127.0.0.1:4000","http://localhost:4000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- ROUTES ---
-app.include_router(rag_router, prefix="/ai", tags=["RAG"]) # Your original RAG
-app.include_router(agent_router, prefix="/agent", tags=["Agent"]) # New Agent
+app.include_router(rag_router, prefix="", tags=["RAG"])
+app.include_router(agent_router, prefix="/agent", tags=["Agent"])
 
 @app.get("/health")
 def health():

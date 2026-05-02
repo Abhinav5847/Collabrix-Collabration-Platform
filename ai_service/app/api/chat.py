@@ -7,7 +7,7 @@ import os
 
 router = APIRouter()
 
-@router.post("/ingest")
+@router.post("/ai/ingest")
 @limiter.limit("10/minute")
 async def ingest_from_celery(request: Request, payload: dict = Body(...)):
     try:
@@ -21,7 +21,7 @@ async def ingest_from_celery(request: Request, payload: dict = Body(...)):
         print(f"Ingest Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("")
+@router.post("/chat")
 @limiter.limit("5/minute")
 async def chat_with_langgraph(request: Request, payload: dict = Body(...)):
     try:

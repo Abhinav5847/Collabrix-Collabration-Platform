@@ -1,38 +1,36 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from app.agent.engine import agent_executor
-from langchain_core.messages import HumanMessage
+from fastapi import APIRouter, Request, Depends, HTTPException
+from app.agent.auth import get_current_user
+from app.agent.engine import collabrix_agent  # Assuming this is your agent instance
 
 router = APIRouter()
 
-class AgentRequest(BaseModel):
-    message: str
-    thread_id: str 
-    user_id: int  
+@router.post("/chat")
+async def agent_chat(request: Request, payload: dict, user_id: str = Depends(get_current_user)):
+ 
+    access_token = request.cookies.get("access_token")
+    
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Access token missing from cookies")
 
-@router.post("")
-async def agent_communication(data: AgentRequest):
+    config = {
+        "configurable": {
+            "user_id": user_id,
+            "access_token": access_token,
+            "thread_id": f"user_{user_id}" 
+        }
+    }
+
     try:
-        # thread_id MUST be a string to match the AWS Partition Key
-        config = {
-            "configurable": {
-                "thread_id": str(data.thread_id)
-            }
-        }
-        
-        input_state = {
-            "messages": [HumanMessage(content=data.message)],
-            "user_id": data.user_id 
-        }
-        
-        # Invoke the Agent
-        result = await agent_executor.ainvoke(input_state, config=config)
-        
-        if "messages" in result and len(result["messages"]) > 0:
-            return {"response": result["messages"][-1].content}
-        
-        return {"response": "No response from agent."}
+        user_message = payload.get("message")
+        if not user_message:
+            raise HTTPException(status_code=400, detail="No message provided")
 
+     
+        result = await collabrix_agent.ainvoke(
+            {"messages": [("user", user_message)]}, 
+            config=config
+        )
+        
+        return result
     except Exception as e:
-        print(f"❌ AGENT API ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

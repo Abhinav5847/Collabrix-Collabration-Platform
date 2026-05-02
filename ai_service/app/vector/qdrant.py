@@ -12,23 +12,20 @@ def init_collection():
     try:
         collections = client.get_collections().collections
         exists = any(c.name == COLLECTION for c in collections)
-        
         if not exists:
             client.create_collection(
                 collection_name=COLLECTION,
                 vectors_config=VectorParams(size=768, distance=Distance.COSINE),
             )
-            print(f"Qdrant Collection '{COLLECTION}' created.")
-        else:
-            print(f"ℹQdrant Collection '{COLLECTION}' already exists.")
     except Exception as e:
         print(f"Qdrant Init Error: {e}")
 
 def upsert_document(text: str, workspace_id: str, doc_id: str):
-
-    if not text: return
-    vector = embed_query(text)
+    if not text or len(text.strip()) < 2: return
     
+    vector = embed_query(text)
+    # Using a deterministic ID based on doc_id if you want to overwrite the SAME doc
+    # OR use uuid4() if you want to keep history. Let's stick to doc_id for simplicity:
     point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(doc_id)))
 
     client.upsert(
@@ -55,14 +52,17 @@ def get_retriever(workspace_id: str, doc_id: str):
         embedding=CustomEmbedding(),
         content_payload_key="page_content"
     )
+    
+    # CRITICAL: Ensure these keys match the payload exactly
+    search_filter = Filter(
+        must=[
+            FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id))),
+        ]
+    )
+    
     return vectorstore.as_retriever(
         search_kwargs={
             "k": 3,
-            "filter": Filter(
-                must=[
-                    FieldCondition(key="workspace_id", match=MatchValue(value=str(workspace_id))),
-                    FieldCondition(key="doc_id", match=MatchValue(value=str(doc_id))),
-                ]
-            ),
+            "filter": search_filter,
         }
     )
