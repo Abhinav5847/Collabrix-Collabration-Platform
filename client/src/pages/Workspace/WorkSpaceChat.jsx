@@ -47,12 +47,11 @@ const WorkspaceChat = () => {
         const socket = new WebSocket(wsUrl);
         socketRef.current = socket;
 
-        socket.onopen = () => console.log("✅ WebSocket Connected");
+        socket.onopen = () => console.log("WebSocket Connected");
 
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
-            // Map incoming live data to our message structure
             const newMessage = {
                 message: data.message,
                 sender: data.sender,
@@ -62,13 +61,13 @@ const WorkspaceChat = () => {
             setMessages((prev) => [...prev, newMessage]);
         };
 
-        socket.onclose = (e) => console.log(`❌ WebSocket Closed: ${e.code}`);
-        socket.onerror = (err) => console.error("⚠️ WebSocket Error:", err);
+        socket.onclose = (e) => console.log(`❌WebSocket Closed: ${e.code}`);
+        socket.onerror = (err) => console.error("WebSocket Error:", err);
 
         return () => socket.close();
     }, [workspaceId]);
 
-    // 4. Send Message via WebSocket
+
     const sendMessage = (e) => {
         e.preventDefault();
         if (input.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
@@ -84,13 +83,12 @@ const WorkspaceChat = () => {
 
     return (
         <div className="card shadow-sm border-0" style={{ height: "85vh", display: 'flex', flexDirection: 'column', borderRadius: "12px" }}>
-            {/* Header */}
+
             <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3">
                 <h6 className="mb-0 fw-bold">Workspace Chat #{workspaceId}</h6>
                 <span className="badge rounded-pill bg-success px-3">Live</span>
             </div>
 
-            {/* Chat Area */}
             <div className="card-body overflow-auto p-4" style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
                 {messages.length === 0 && (
                     <div className="text-center mt-5 text-muted">
@@ -124,7 +122,6 @@ const WorkspaceChat = () => {
                 <div ref={scrollRef} />
             </div>
 
-            {/* Input Area */}
             <form onSubmit={sendMessage} className="card-footer bg-white p-3 border-top d-flex gap-2">
                 <input 
                     className="form-control border-0 bg-light py-2" 
