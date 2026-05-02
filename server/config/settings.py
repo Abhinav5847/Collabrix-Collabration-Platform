@@ -281,3 +281,5 @@ AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
 
 GROQ_API_KEY=os.environ.get('GROQ_API_KEY')
 GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY')
+
+N8N_WEBHOOK_URL = os.environ.get('N8N_WEBHOOK_URL')

@@ -6,7 +6,8 @@ from .views import (
     WorkspaceChatHistoryView,
     WorkspaceDetailView,
     WorkspaceListCreateView,
-    AllUsersListView
+    AllUsersListView,
+    JoinWorkspaceView
 )
 
 urlpatterns = [
@@ -28,4 +29,5 @@ urlpatterns = [
         name="workspace-chat-history",
     ),
     path('users/all/', AllUsersListView.as_view(), name='all-users-list'),
+    path('workspace/<int:pk>/join/', JoinWorkspaceView.as_view(), name='workspace-join'),
 ]

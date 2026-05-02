@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from .serializers import UserSelectSerializer
+import requests
+from apps.notifications.tasks import process_workspace_invitation_task
+from django.conf import settings
 
 from .models import WorkSpace, WorkspaceMember, WorkspaceMessage
 from .serializers import (
@@ -111,6 +114,7 @@ class WorkspaceDetailView(APIView):
             )
 
 
+
 class MembersListCreateview(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = WorkspaceMemberSerializer
@@ -131,38 +135,51 @@ class MembersListCreateview(APIView):
         try:
             workspace = get_object_or_404(WorkSpace, pk=pk)
 
+            # Ensure only the owner can invite
             if workspace.owner != request.user:
-                return Response(
-                    {"error": "Only the workspace owner can invite members"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
 
-            serializer = self.serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
+            email = request.data.get('email')
+            username = request.data.get('username', email.split('@')[0] if email else "User")
+            role = request.data.get('role', 'VIEWER')
 
-            # FIXED: 'user' matches the field name in the updated serializer
-            user_to_add = serializer.validated_data["user"]
+            if not email:
+                return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            if WorkspaceMember.objects.filter(
-                workspace=workspace, user=user_to_add
-            ).exists():
-                return Response(
-                    {"error": "This user is already a member of this workspace"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            # --- PUSH NOTIFICATION LOGIC ---
+            try:
+                recipient = User.objects.filter(email=email).first()
+                if recipient:
+                    process_workspace_invitation_task.delay(
+                        inviter_id=request.user.id,
+                        recipient_id=recipient.id,
+                        workspace_id=workspace.id
+                    )
+            except Exception as push_err:
+                # Assuming logger is defined elsewhere in your file
+                pass 
 
-            # Inject the workspace from the URL into the save method
-            serializer.save(workspace=workspace)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Payload for n8n
+            payload = {
+                "email": email,
+                "username": username,
+                "role": role,
+                "workspace_name": workspace.name,
+                "inviter": request.user.username,
+                "join_url": f"http://127.0.0.1:4000/workspaces/join/{workspace.id}" 
+            }
 
-        except DRFValidationError as e:
-            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            # --- TRIGGER N8N USING SETTINGS ---
+            # This uses the N8N_WEBHOOK_URL you added to settings.py
+            n8n_url = getattr(settings, 'N8N_WEBHOOK_URL', None)
+            
+            if n8n_url:
+                requests.post(n8n_url, json=payload, timeout=5)
+
+            return Response({"message": "Invite sent via email and push!"}, status=status.HTTP_202_ACCEPTED)
+
         except Exception as e:
-            return Response(
-                {"error": "An unexpected error occurred", "details": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class MembersDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -232,6 +249,24 @@ class MembersDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+class JoinWorkspaceView(APIView):
+    permission_classes = [IsAuthenticated] # User must be logged in to join
+
+    def post(self, request, pk):
+        workspace = get_object_or_404(WorkSpace, pk=pk)
+
+        # Ensure they aren't already a member
+        if WorkspaceMember.objects.filter(workspace=workspace, user=request.user).exists():
+            return Response({"detail": "Already a member."}, status=status.HTTP_200_OK)
+
+        # Add them to the workspace
+        WorkspaceMember.objects.create(
+            workspace=workspace,
+            user=request.user,
+            role='MEMBER'
+        )
+        return Response({"detail": "Joined successfully!"}, status=status.HTTP_201_CREATED)            
+
 
 class WorkspaceChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -261,7 +296,15 @@ class AllUsersListView(APIView):
 
     def get(self, request):
         try:
+            # Optional: Get workspace ID from query params to exclude existing members
+            workspace_id = request.query_params.get('exclude_workspace')
+            
             users = User.objects.all().order_by('username')
+
+            if workspace_id:
+                # Exclude users who are already members of this specific workspace
+                users = users.exclude(workspace_memberships__workspace_id=workspace_id)
+
             serializer = self.serializer_class(users, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:

@@ -114,3 +114,60 @@ def process_chat_mention_task(message_content, sender_id, workspace_id):
     except Exception as e:
         logger.error(str(e))
         return str(e)
+    
+@shared_task        
+def process_workspace_invitation_task(inviter_id, recipient_id, workspace_id):
+    try:
+        sender = User.objects.get(id=inviter_id)
+        recipient = User.objects.get(id=recipient_id)
+        workspace = WorkSpace.objects.get(id=workspace_id)
+
+        # 1. SAVE TO DATABASE
+        note = Notification.objects.create(
+            recipient=recipient,
+            sender=sender,
+            message=f"{sender.username} invited you to join {workspace.name}",
+            notification_type="invitation",
+        )
+
+        # 2. SEND VIA WEBSOCKET (Critical: include notification_type)
+        channel_layer = get_channel_layer()
+        group_name = f"user_notifications_{recipient.id}"
+        timestamp = note.created_at.isoformat() if note.created_at else timezone.now().isoformat()
+        
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "send_notification",
+                "content": {
+                    "id": note.id,
+                    "message": note.message,
+                    "sender_username": sender.username, # Matches Serializer field
+                    "notification_type": "invitation", # Required for Frontend UI
+                    "is_read": note.is_read,
+                    "created_at": timestamp,
+                },
+            },
+        )
+
+        # 3. SEND PUSH NOTIFICATION (FCM)
+        token = recipient.fcm_token
+        if token:
+            payload = {
+                "token": token,
+                "title": "Workspace Invitation",
+                "body": note.message,
+                "data": {
+                    "type": "invitation",
+                    "workspace_id": str(workspace_id),
+                    "notification_id": str(note.id)
+                }
+            }
+            sqs_client.send_message(
+                QueueUrl=settings.AWS_SQS_QUEUE_URL,
+                MessageBody=json.dumps(payload)
+            )
+        return f"Invitation processed for {recipient.username}"
+    except Exception as e:
+        logger.error(f"Error in invitation task: {str(e)}")
+        return str(e)

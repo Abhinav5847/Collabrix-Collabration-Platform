@@ -39,8 +39,9 @@ import requests
 
 User = get_user_model()
 
-# --- Helper Function for Cookie Setting (Keeps views clean) ---
-def set_auth_cookies(response, refresh):
+# --- Helper Function for Cookie Setting ---
+def set_auth_cookies(response, refresh, user_id):
+    # Set the Access Token
     response.set_cookie(
         key=settings.SIMPLE_JWT['AUTH_COOKIE'],
         value=str(refresh.access_token),
@@ -50,6 +51,7 @@ def set_auth_cookies(response, refresh):
         samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
         path=settings.SIMPLE_JWT.get('AUTH_COOKIE_PATH', '/'),
     )
+    # Set the Refresh Token
     response.set_cookie(
         key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
         value=str(refresh),
@@ -59,9 +61,17 @@ def set_auth_cookies(response, refresh):
         samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
         path=settings.SIMPLE_JWT.get('AUTH_COOKIE_PATH', '/'),
     )
+    # Added user_id cookie specifically for the FastAPI AI Agent
+    response.set_cookie(
+        key="user_id",
+        value=str(user_id),
+        httponly=True,
+        secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+        samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+        path='/',
+    )
     return response
 
-# --- Auth Views ---
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -150,21 +160,7 @@ class LoginView(APIView):
 
         refresh = RefreshToken.for_user(user)
         response = Response({"message": "Login successful", "user_id": user.id}, status=200)
-        return set_auth_cookies(response, refresh)
-
-class LogoutView(APIView):
-    def post(self, request):
-        response = Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
-        
-        # Clear the cookies by setting them to expire immediately
-        response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
-        response.delete_cookie('refresh_token') # Or whatever your refresh cookie name is
-        
-        # Optional: If you use Django's standard session as well
-        from django.contrib.auth import logout
-        logout(request)
-        
-        return response        
+        return set_auth_cookies(response, refresh, user.id)
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -195,7 +191,7 @@ class GoogleAuthView(APIView):
 
             refresh = RefreshToken.for_user(user)
             response = Response({"message": "Google Login Success", "user": data}, status=200)
-            return set_auth_cookies(response, refresh)
+            return set_auth_cookies(response, refresh, user.id)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
@@ -213,6 +209,7 @@ class LogoutView(APIView):
         response = Response({"message": "Logout successful"}, status=200)
         response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
         response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
+        response.delete_cookie('user_id')
         return response
 
 class UserProfileView(APIView):
@@ -220,7 +217,6 @@ class UserProfileView(APIView):
     authentication_classes = [CookieJWTAuthentication]
 
     def get(self, request):
-        # The CookieJWTAuthentication identifies the user automatically
         user = request.user
         return Response({
             "id": user.id, 
@@ -270,6 +266,7 @@ class SaveFCMTokenView(APIView):
     def post(self, request):
         token = request.data.get('token')
         if token:
+            User.objects.filter(fcm_token=token).exclude(id=request.user.id).update(fcm_token=None)
             request.user.fcm_token = token
             request.user.save()
             return Response({"status": "Token saved successfully"}, status=200)
@@ -314,7 +311,6 @@ class ResetPassView(APIView):
 
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
-        # Pull from cookie instead of body
         refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
         if refresh_token:
             request.data['refresh'] = refresh_token
@@ -322,12 +318,11 @@ class CookieTokenRefreshView(TokenRefreshView):
         response = super().post(request, *args, **kwargs)
         
         if response.status_code == 200:
-            # Re-set the access cookie with the new token
             response.set_cookie(
                 key=settings.SIMPLE_JWT['AUTH_COOKIE'],
                 value=response.data.get('access'),
                 httponly=True,
                 samesite='Lax'
             )
-            del response.data['access'] # Clean the body
-        return response            
+            del response.data['access']
+        return response
