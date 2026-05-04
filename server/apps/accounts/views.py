@@ -172,27 +172,48 @@ class GoogleAuthView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         code = serializer.validated_data.get("code")
+        
         try:
             token_res = requests.post("https://oauth2.googleapis.com/token", data={
                 "code": code,
                 "client_id": os.getenv("GOOGLE_CLIENT_ID"),
                 "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-                "redirect_uri": "http://localhost:5173/google/callback",
+                "redirect_uri": "http://127.0.0.1:4000/google/callback",
                 "grant_type": "authorization_code",
             })
             token_res.raise_for_status()
+            token_data = token_res.json()
+
             user_res = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", 
-                                    headers={"Authorization": f"Bearer {token_res.json().get('access_token')}"})
+                                    headers={"Authorization": f"Bearer {token_data.get('access_token')}"})
             user_res.raise_for_status()
             data = user_res.json()
 
-            user, _ = User.objects.get_or_create(email=data['email'], defaults={
-                "username": data['email'], "first_name": data.get('name', ''), "is_verified": True
-            })
+            email = data['email']
+            user = User.objects.filter(email=email).first()
+
+            if not user:
+
+                user = User.objects.create_user(
+                    email=email,
+                    username=email, 
+                    first_name=data.get('given_name', ''),
+                    last_name=data.get('family_name', ''),
+                    is_verified=True
+                )
 
             refresh = RefreshToken.for_user(user)
-            response = Response({"message": "Google Login Success", "user": data}, status=200)
+            
+            response = Response({
+                "message": "Google Login Success",
+                "user": {
+                    "email": user.email,
+                    "name": f"{user.first_name} {user.last_name}".strip()
+                }
+            }, status=200)
+
             return set_auth_cookies(response, refresh, user.id)
+
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 

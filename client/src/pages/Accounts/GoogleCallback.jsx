@@ -1,46 +1,43 @@
-import { useEffect } from "react";
+import React, { useEffect, useRef } from "react"; // Added useRef to prevent double-execution
 import { useNavigate } from "react-router-dom";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import { api } from "../../services/api";
 
 const GoogleCallback = () => {
   const navigate = useNavigate();
+  const hasCalledAPI = useRef(false); // StrictMode often triggers useEffect twice
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code");
 
-    if (code) {
+    if (code && !hasCalledAPI.current) {
+      hasCalledAPI.current = true;
+      
       api
         .post("/accounts/google_login/", { code })
         .then((res) => {
-          localStorage.setItem("access", res.data.access);
-          localStorage.setItem("refresh", res.data.refresh);
+          // IMPORTANT: Do NOT manually set localStorage for access/refresh tokens.
+          // Your backend 'set_auth_cookies' handles this via HttpOnly cookies.
 
-          toast.success("Logged in with Google!", {
-            position: "top-right",
-            autoClose: 3000,
-          });
-
-          // setTimeout(() =>
-             navigate("/")
-          // , 1000);
+          toast.success("Logged in with Google!");
+          
+          // Small delay to let the cookie settle and show the toast
+          setTimeout(() => {
+            navigate("/");
+          }, 500);
         })
         .catch((err) => {
-          console.error(err);
-          toast.error("Google login failed!", {
-            position: "top-right",
-            autoClose: 5000,
-          });
+          console.error("Google Auth Error:", err.response?.data || err.message);
+          toast.error("Google login failed!");
           navigate("/login");
         });
     }
   }, [navigate]);
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100">
-      <h3>Logging in with Google...</h3>
-      <ToastContainer />
+    <div className="d-flex flex-column justify-content-center align-items-center vh-100">
+      <div className="spinner-border text-primary mb-3" role="status"></div>
+      <h3>Verifying Google Account...</h3>
     </div>
   );
 };

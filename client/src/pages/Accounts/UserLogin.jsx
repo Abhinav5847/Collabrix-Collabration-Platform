@@ -24,39 +24,29 @@ const UserLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 1. Attempt Login
     const resultAction = await dispatch(loginUser(form));
 
     if (loginUser.fulfilled.match(resultAction)) {
       toast.success("Login Successful!");
 
       try {
-        /**
-         * 2. SYNC FCM TOKEN
-         * CRITICAL: We call this AFTER login is fulfilled.
-         * The browser now has the HTTP-only cookie, so when sendFCMTokenToBackend
-         * makes its API call, Django will know which user it is.
-         */
+       
         await sendFCMTokenToBackend(); 
         console.log("FCM registration triggered successfully.");
       } catch (err) {
-        // We catch this so a Firebase error doesn't block the user from entering the app
+        
         console.error("FCM sync failed during login:", err);
       }
-
-      // 3. Fetch profile if needed (though usually handled in Layout)
       const userId = resultAction.payload.user?.id || resultAction.payload.id;
       if (userId) {
         await dispatch(fetchUserProfile(userId));
       }
 
-      // 4. Redirect
       setTimeout(() => {
         navigate("/");
       }, 1000);
 
     } else {
-      // Error handling
       const message = resultAction.payload || "Invalid email or password";
       const errorMsg = typeof message === 'object' 
         ? Object.values(message).flat().join(", ") 
@@ -67,7 +57,7 @@ const UserLogin = () => {
 
   const handleGoogleLogin = () => {
     const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
-    const redirectUri = "http://localhost:5173/google/callback";
+    const redirectUri = "http://127.0.0.1:4000/google/callback";
     const scope = "email profile";
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
     window.location.href = googleUrl;

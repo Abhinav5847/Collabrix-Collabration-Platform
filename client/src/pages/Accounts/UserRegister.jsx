@@ -66,7 +66,7 @@ const UserRegister = () => {
 
   const handleGoogleLogin = () => {
     const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
-    const redirectUri = "http://localhost:5173/google/callback";
+    const redirectUri = "http://127.0.0.1:4000/google/callback";
     const scope = "email profile";
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
     window.location.href = googleUrl;
