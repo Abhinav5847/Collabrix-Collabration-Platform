@@ -3,33 +3,28 @@ import { api } from '../../services/api';
 
 // --- Thunks ---
 
-export const loginUser = createAsyncThunk(
-  'auth/login',
-  async (userData, { rejectWithValue }) => {
+export const googleLogin = createAsyncThunk(
+  'auth/googleLogin',
+  async (code, { rejectWithValue }) => {
     try {
-      // Cookies are now handled by the browser/Axios (withCredentials: true).
-      const response = await api.post('/accounts/login/', userData);
-      
-      // We store a flag in localStorage just to persist 'logged in' state 
-      // across page refreshes since we can't read the HttpOnly cookie.
+      const response = await api.get(`/accounts/google/callback/?code=${code}`);
       localStorage.setItem('isAuthenticated', 'true');
-      
-      return response.data; 
+      return response.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Login failed");
+      return rejectWithValue(err.response?.data || "Google login failed");
     }
   }
 );
 
-// Updated: No userId needed in parameters. Backend identifies user by cookie.
-export const fetchUserProfile = createAsyncThunk(
-  'auth/fetchUserProfile',
-  async (_, { rejectWithValue }) => {
+export const loginUser = createAsyncThunk(
+  'auth/login',
+  async (userData, { rejectWithValue }) => {
     try {
-      const response = await api.get('accounts/user/profile/');
-      return response.data;
+      const response = await api.post('/accounts/login/', userData);
+      localStorage.setItem('isAuthenticated', 'true');
+      return response.data; 
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Failed to load user profile");
+      return rejectWithValue(err.response?.data || "Login failed");
     }
   }
 );
@@ -58,38 +53,14 @@ export const verifyOtp = createAsyncThunk(
   }
 );
 
-export const resendOtp = createAsyncThunk(
-  'auth/resendOtp',
-  async (email, { rejectWithValue }) => {
+export const fetchUserProfile = createAsyncThunk(
+  'auth/fetchUserProfile',
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await api.post("/accounts/resend_otp/", { email });
+      const response = await api.get('accounts/user/profile/');
       return response.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Failed to resend OTP");
-    }
-  }
-);
-
-export const forgotPassword = createAsyncThunk(
-  'auth/forgotPassword',
-  async (email, { rejectWithValue }) => {
-    try {
-      const response = await api.post('/accounts/forgot_pass/', { email });
-      return response.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data || "Something went wrong");
-    }
-  }
-);
-
-export const resetPassword = createAsyncThunk(
-  'auth/resetPassword',
-  async ({ uid, token, password }, { rejectWithValue }) => {
-    try {
-      const response = await api.post(`/accounts/reset_pass/${uid}/${token}/`, { password });
-      return response.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data || "Invalid or expired link");
+      return rejectWithValue(err.response?.data || "Failed to load user profile");
     }
   }
 );
@@ -120,17 +91,40 @@ export const verifyMfa = createAsyncThunk(
   }
 );
 
+export const forgotPassword = createAsyncThunk(
+  'auth/forgotPassword',
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/accounts/forgot_pass/', { email });
+      return response.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Something went wrong");
+    }
+  }
+);
+
+export const resetPassword = createAsyncThunk(
+  'auth/resetPassword',
+  async ({ uid, token, password }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/accounts/reset_pass/${uid}/${token}/`, { password });
+      return response.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Invalid or expired link");
+    }
+  }
+);
+
 // --- Slice ---
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null, 
-    // Using a boolean flag instead of userId for cleaner state
     isAuthenticated: localStorage.getItem('isAuthenticated') === 'true',
     loading: false,
     error: null,
-    qrImage: null, 
+    qrImage: null,
   },
   reducers: {
     logout: (state) => {
@@ -139,8 +133,6 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       state.qrImage = null;
-      
-      // Tell backend to clear HttpOnly cookies
       api.post('/accounts/logout/').catch(() => {});
     },
     clearError: (state) => {
@@ -149,52 +141,38 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(loginUser.pending, (state) => {
-        state.loading = true;
+      .addCase(googleLogin.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user || action.payload;
+        state.isAuthenticated = true;
         state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user || action.payload;
         state.isAuthenticated = true;
+        state.error = null;
       })
-      .addCase(loginUser.rejected, (state, action) => {
+      .addCase(registerUser.fulfilled, (state) => {
         state.loading = false;
-        state.error = action.payload;
-        state.isAuthenticated = false;
+        state.error = null;
       })
-
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload;
         state.isAuthenticated = true;
       })
-
-      .addCase(fetchMfaQr.pending, (state) => {
-        state.loading = true;
-        state.qrImage = null; 
-      })
       .addCase(fetchMfaQr.fulfilled, (state, action) => {
         state.loading = false;
         state.qrImage = action.payload; 
       })
-      .addCase(fetchMfaQr.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-
       .addCase(verifyMfa.fulfilled, (state) => {
         state.loading = false;
         state.qrImage = null;
       })
-      
       .addMatcher(
-        (action) => action.type.endsWith('/pending') && !action.type.includes('fetchMfaQr'),
+        (action) => action.type.endsWith('/pending'),
         (state) => { state.loading = true; state.error = null; }
-      )
-      .addMatcher(
-        (action) => action.type.endsWith('/fulfilled') && !action.type.includes('loginUser') && !action.type.includes('fetchMfaQr'),
-        (state) => { state.loading = false; }
       )
       .addMatcher(
         (action) => action.type.endsWith('/rejected'),

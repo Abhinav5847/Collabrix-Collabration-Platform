@@ -40,7 +40,6 @@ import requests
 
 User = get_user_model()
 
-# --- Helper Function for Cookie Setting ---
 def set_auth_cookies(response, refresh, user_id):
     # Set the Access Token
     response.set_cookie(
@@ -62,7 +61,7 @@ def set_auth_cookies(response, refresh, user_id):
         samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
         path=settings.SIMPLE_JWT.get('AUTH_COOKIE_PATH', '/'),
     )
-    # Added user_id cookie specifically for the FastAPI AI Agent
+
     response.set_cookie(
         key="user_id",
         value=str(user_id),
@@ -73,28 +72,27 @@ def set_auth_cookies(response, refresh, user_id):
     )
     return response
 
-
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     serializer_class = RegisterSerializer
 
     def post(self, request):
+        # Let raise_exception=True handle the 400 response automatically
+        # This ensures the structure is { "field_name": ["error"] }
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
         try:
-            serializer = self.serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            user = serializer.save()
-            try:
-                otp = UserOTP.objects.create(user=user)
-                if not send_otp_email(user.email, otp.code):
-                    raise Exception("Failed to send OTP email")
-            except Exception as e:
-                return Response({"error": f"OTP not sent: {str(e)}"}, status=500)
-            return Response({"message": "Registration completed. Check your email for OTP."}, status=201)
-        except DRFValidationError as e:
-            return Response({"error": e.detail}, status=400)
-        except Exception:
-            return Response({"error": "Something went wrong"}, status=500)
+            otp = UserOTP.objects.create(user=user)
+            if not send_otp_email(user.email, otp.code):
+                raise Exception("Failed to send OTP email")
+        except Exception as e:
+            # If user is created but email fails, we return a 500
+            return Response({"detail": f"OTP not sent: {str(e)}"}, status=500)
+            
+        return Response({"message": "Registration completed. Check your email for OTP."}, status=201)
 
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
@@ -310,6 +308,7 @@ class ForgotPassView(APIView):
             send_forgotpass_email(user.email, reset_link)
         except User.DoesNotExist: pass
         return Response({"message": "If the email exists, a reset link has been sent"}, status=200)
+
 
 class ResetPassView(APIView):
     permission_classes = [AllowAny]

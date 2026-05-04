@@ -1,180 +1,124 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux"; 
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
-import { registerUser } from "../../store/slices/authSlice";
+import { registerUser, clearError } from "../../store/slices/authSlice";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserRegister = () => {
-  const [form, setForm] = useState({
-    email: "",
-    username: "",
-    password: "",
-    confirm_password: "",
-  });
-
+  const [form, setForm] = useState({ email: "", username: "", password: "", confirm_password: "" });
+  const [fieldErrors, setFieldErrors] = useState({});
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  
-  // Get loading state from auth slice to disable button during request
   const { loading } = useSelector((state) => state.auth);
 
-  const handleChange = (e) =>
+  useEffect(() => { 
+    dispatch(clearError()); 
+  }, [dispatch]);
+
+  const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Client-side check before hitting the API
-    if (form.password !== form.confirm_password) {
-      return toast.error("Passwords do not match");
-    }
-
-    // Dispatch the registration thunk
-    const resultAction = await dispatch(registerUser(form));
-
-    if (registerUser.fulfilled.match(resultAction)) {
-      toast.success(resultAction.payload.message || "Registration successful!", {
-        position: "top-right",
-        autoClose: 3000,
-      });
-
-      // Navigate to OTP page, passing email for the next step
-      setTimeout(() => {
-        navigate("/verify-otp", { state: { email: form.email } });
-      }, 1000);
-    } else {
-      // Logic to handle Django error objects or strings
-      const errorData = resultAction.payload;
-      let message = "Registration failed";
-      
-      if (typeof errorData === 'object' && errorData !== null) {
-        message = Object.entries(errorData)
-          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
-          .join(" | ");
-      } else if (typeof errorData === 'string') {
-        message = errorData;
-      }
-
-      toast.error(message, {
-        position: "top-right",
-        autoClose: 5000,
-      });
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors({ ...fieldErrors, [e.target.name]: "" });
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFieldErrors({});
+
+    const resultAction = await dispatch(registerUser(form));
+
+    if (registerUser.fulfilled.match(resultAction)) {
+      toast.success("Registration successful!");
+      setTimeout(() => navigate("/verify-otp", { state: { email: form.email } }), 1000);
+    } else {
+      const errorData = resultAction.payload;
+      if (typeof errorData === 'object' && errorData !== null) {
+        // Global error handling
+        const globalMsg = errorData.non_field_errors || errorData.detail || errorData.error;
+        if (globalMsg) {
+          toast.error(Array.isArray(globalMsg) ? globalMsg[0] : globalMsg);
+        }
+        // Field error handling
+        setFieldErrors(errorData);
+      } else {
+        toast.error("An unexpected server error occurred.");
+      }
+    }
+  };
+
+  // MATCHED LOGIC FROM LOGIN
   const handleGoogleLogin = () => {
     const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
     const redirectUri = "http://127.0.0.1:4000/google/callback";
     const scope = "email profile";
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-    window.location.href = googleUrl;
+    window.location.href = googleUrl; 
   };
 
+  const renderInput = (label, name, type = "text", placeholder = "") => (
+    <div className="mb-3">
+      <label className="form-label small fw-bold text-muted">{label}</label>
+      <input
+        type={type}
+        name={name}
+        placeholder={placeholder}
+        className={`form-control py-2 ${fieldErrors[name] ? "is-invalid" : ""}`}
+        value={form[name]}
+        onChange={handleChange}
+        required
+      />
+      {fieldErrors[name] && (
+        <div className="invalid-feedback">
+          {Array.isArray(fieldErrors[name]) ? fieldErrors[name][0] : fieldErrors[name]}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    // Use container-fluid and min-vh-100 for proper centering on all devices
-    <div className="container-fluid d-flex justify-content-center align-items-center min-vh-100 bg-light p-3">
-      {/* Responsive card: 100% width on small screens, max 400px on large */}
-      <div className="card shadow border-0 p-4 w-100" style={{ maxWidth: "400px" }}>
-        <h3 className="text-center mb-4 fw-bold">User Registration</h3>
+    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="card shadow-sm p-4 border-0" style={{ width: "420px", borderRadius: "12px" }}>
+        <h3 className="text-center mb-4 fw-bold text-dark">Join Collabrix</h3>
+        
+        <form onSubmit={handleSubmit} noValidate>
+          {renderInput("Email Address", "email", "email", "name@company.com")}
+          {renderInput("Username", "username", "text", "johndoe")}
+          {renderInput("Password", "password", "password", "••••••••")}
+          {renderInput("Confirm Password", "confirm_password", "password", "••••••••")}
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label small fw-bold text-secondary">Email</label>
-            <input
-              type="email"
-              name="email"
-              className="form-control"
-              placeholder="Enter your email"
-              value={form.email}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small fw-bold text-secondary">Username</label>
-            <input
-              type="text"
-              name="username"
-              className="form-control"
-              placeholder="Enter your username"
-              value={form.username}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small fw-bold text-secondary">Password</label>
-            <input
-              type="password"
-              name="password"
-              className="form-control"
-              placeholder="Enter your password"
-              value={form.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small fw-bold text-secondary">Confirm Password</label>
-            <input
-              type="password"
-              name="confirm_password"
-              className="form-control"
-              placeholder="Confirm your password"
-              value={form.confirm_password}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="btn btn-primary w-100 py-2 shadow-sm"
-            disabled={loading} // Disable button while loading
-          >
-            {loading ? (
-              <span className="spinner-border spinner-border-sm me-2"></span>
-            ) : null}
-            {loading ? "Registering..." : "Register"}
+          <button type="submit" className="btn btn-primary w-100 py-2 fw-bold shadow-sm mt-2" disabled={loading}>
+            {loading ? <span className="spinner-border spinner-border-sm me-2"></span> : "Create Account"}
           </button>
         </form>
 
-        <div className="mt-3 text-center">
-          <small className="text-muted">
-            Already have an account?{" "}
-            <span 
-              className="text-primary fw-bold" 
-              style={{ cursor: "pointer" }}
-              onClick={() => navigate("/login")}
-            >
-              Login here
-            </span>
-          </small>
-        </div>
-
-        <div className="d-flex align-items-center my-3">
-          <hr className="flex-grow-1" />
-          <span className="px-2 text-muted small">OR</span>
-          <hr className="flex-grow-1" />
+        <div className="d-flex align-items-center my-4">
+          <hr className="flex-grow-1 text-muted" />
+          <span className="px-3 text-muted x-small fw-bold">OR CONTINUE WITH</span>
+          <hr className="flex-grow-1 text-muted" />
         </div>
 
         <button
           type="button"
+          className="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center py-2 fw-semibold"
           onClick={handleGoogleLogin}
-          className="btn btn-outline-dark w-100 d-flex align-items-center justify-content-center py-2"
-          style={{ borderRadius: "6px", fontWeight: "500" }}
         >
-          <FcGoogle size={22} style={{ marginRight: "10px" }} />
-          Continue with Google
+          <FcGoogle className="me-2" size={22} /> Google
         </button>
-      </div>
 
-      <ToastContainer />
+        <p className="mt-4 text-center text-muted small">
+          Already have an account?{" "}
+          <button
+            className="btn btn-link p-0 fw-bold text-decoration-none"
+            onClick={() => navigate("/login")}
+          >
+            Sign In
+          </button>
+        </p>
+      </div>
+      <ToastContainer position="top-right" autoClose={4000} hideProgressBar />
     </div>
   );
 };
