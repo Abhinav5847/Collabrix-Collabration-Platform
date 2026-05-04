@@ -7,7 +7,8 @@ from .views import (
     WorkspaceDetailView,
     WorkspaceListCreateView,
     AllUsersListView,
-    JoinWorkspaceView
+    JoinWorkspaceView,
+    AcceptInviteView,
 )
 
 urlpatterns = [
@@ -30,4 +31,5 @@ urlpatterns = [
     ),
     path('users/all/', AllUsersListView.as_view(), name='all-users-list'),
     path('workspace/<int:pk>/join/', JoinWorkspaceView.as_view(), name='workspace-join'),
+    path('workspaces/invite/accept/<uuid:token>/', AcceptInviteView.as_view(), name='accept-invite'),
 ]

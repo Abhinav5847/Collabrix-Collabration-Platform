@@ -7,14 +7,17 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from .serializers import UserSelectSerializer
 import requests
+import uuid
+from django.utils import timezone
 from apps.notifications.tasks import process_workspace_invitation_task
 from django.conf import settings
 
-from .models import WorkSpace, WorkspaceMember, WorkspaceMessage
+from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation
 from .serializers import (
     WorkspaceMemberSerializer,
     WorkspaceMessageSerializer,
     WorkspaceSerializer,
+    WorkspaceMemberSerializer,
 )
 
 User = get_user_model()
@@ -114,13 +117,13 @@ class WorkspaceDetailView(APIView):
             )
 
 
-
 class MembersListCreateview(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = WorkspaceMemberSerializer
 
     def get(self, request, pk):
         try:
+            # Verify the requesting user is a member of the workspace
             workspace = get_object_or_404(WorkSpace, pk=pk, members__user=request.user)
             members = workspace.members.all()
             serializer = self.serializer_class(members, many=True)
@@ -135,18 +138,34 @@ class MembersListCreateview(APIView):
         try:
             workspace = get_object_or_404(WorkSpace, pk=pk)
 
-            # Ensure only the owner can invite
+            # 1. Security Check: Only the owner can invite
             if workspace.owner != request.user:
-                return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+                return Response({"error": "Unauthorized. Only the owner can invite members."}, status=status.HTTP_403_FORBIDDEN)
 
             email = request.data.get('email')
-            username = request.data.get('username', email.split('@')[0] if email else "User")
             role = request.data.get('role', 'VIEWER')
 
             if not email:
                 return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # --- PUSH NOTIFICATION LOGIC ---
+            # 2. Check if the user is already an active member to prevent IntegrityError
+            if WorkspaceMember.objects.filter(workspace=workspace, user__email=email).exists():
+                return Response({"error": "This user is already a member of the workspace."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 3. Create or Refresh the Secure Invitation Token
+            # This ensures if a link expired, we generate a fresh one for the same email
+            invitation, created = WorkspaceInvitation.objects.update_or_create(
+                workspace=workspace,
+                email=email,
+                defaults={
+                    'role': role,
+                    'token': uuid.uuid4(),
+                    'created_at': timezone.now(),
+                    'is_used': False
+                }
+            )
+
+            # 4. Push Notification Logic (Internal App Notification)
             try:
                 recipient = User.objects.filter(email=email).first()
                 if recipient:
@@ -155,28 +174,36 @@ class MembersListCreateview(APIView):
                         recipient_id=recipient.id,
                         workspace_id=workspace.id
                     )
-            except Exception as push_err:
-                # Assuming logger is defined elsewhere in your file
+            except Exception:
                 pass 
 
-            # Payload for n8n
+            # 5. Generate Secure Join URL for n8n/Email
+            # The token-based URL ensures only the link holder can access the join flow
+            join_url = f" http://127.0.0.1:4000/workspaces/join/{invitation.token}" 
+
+            # Payload for n8n/Email automation
             payload = {
                 "email": email,
-                "username": username,
                 "role": role,
                 "workspace_name": workspace.name,
                 "inviter": request.user.username,
-                "join_url": f"http://127.0.0.1:4000/workspaces/join/{workspace.id}" 
+                "join_url": join_url,
+                "expires_in": "48 hours"
             }
 
-            # --- TRIGGER N8N USING SETTINGS ---
-            # This uses the N8N_WEBHOOK_URL you added to settings.py
+            # Trigger n8n Webhook
             n8n_url = getattr(settings, 'N8N_WEBHOOK_URL', None)
-            
             if n8n_url:
-                requests.post(n8n_url, json=payload, timeout=5)
+                try:
+                    requests.post(n8n_url, json=payload, timeout=5)
+                except requests.exceptions.RequestException:
+                    # Log the error if n8n is down but continue the response
+                    pass
 
-            return Response({"message": "Invite sent via email and push!"}, status=status.HTTP_202_ACCEPTED)
+            return Response({
+                "message": "Secure invite sent successfully!",
+                "expires": "Link valid for 48 hours"
+            }, status=status.HTTP_202_ACCEPTED)
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -312,3 +339,55 @@ class AllUsersListView(APIView):
                 {"error": "Failed to fetch user list", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class AcceptInviteView(APIView):
+    """
+    Finalizes the invitation process by validating the secure token 
+    and adding the user to the workspace members list.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, token):
+        try:
+            # 1. Retrieve the invitation using the unique UUID token
+            # We also ensure the token hasn't been used yet
+            invitation = get_object_or_404(WorkspaceInvitation, token=token, is_used=False)
+
+            # 2. Security Check: Has the 48-hour window passed?
+            if invitation.is_expired():
+                return Response(
+                    {"error": "This invitation link has expired (48-hour limit). Please ask the owner for a new invite."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 3. Security Check: Does the logged-in user's email match the invite?
+            # This prevents users from forwarding invite links to unauthorized people.
+            if request.user.email != invitation.email:
+                return Response(
+                    {"error": "This invitation was sent to a different email address."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # 4. Create the Membership
+            # We use get_or_create to safely handle accidental double-clicks 
+            # and prevent IntegrityErrors.
+            member, created = WorkspaceMember.objects.get_or_create(
+                workspace=invitation.workspace,
+                user=request.user,
+                defaults={'role': invitation.role}
+            )
+
+            # 5. Mark the token as used so it cannot be reused
+            invitation.is_used = True
+            invitation.save()
+
+            return Response({
+                "message": f"Success! You are now a {invitation.role} of {invitation.workspace.name}.",
+                "workspace_id": invitation.workspace.id
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {"error": "An error occurred while processing the invite.", "details": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )        

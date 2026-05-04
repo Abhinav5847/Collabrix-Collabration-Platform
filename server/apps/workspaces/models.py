@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
-from django.utils.text import slugify
+import uuid
+from django.utils import timezone
+from datetime import timedelta     
 
 
 class WorkSpace(models.Model):
@@ -45,3 +47,25 @@ class WorkspaceMessage(models.Model):
 
     def __str__(self):
         return f"{self.user.email}: {self.content[:20]}"
+
+class WorkspaceInvitation(models.Model):
+
+    workspace = models.ForeignKey(
+        WorkSpace, on_delete=models.CASCADE, related_name="invitations"
+    )
+    email = models.EmailField()
+    role = models.CharField(
+        max_length=20, 
+        choices=WorkspaceMember.ROLE_CHOICES, 
+        default="VIEWER"
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+       
+        return timezone.now() > self.created_at + timedelta(hours=48)
+
+    def __str__(self):
+        return f"Invite for {self.email} to {self.workspace.name}"        
