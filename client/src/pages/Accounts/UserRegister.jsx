@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { useDispatch, useSelector } from "react-redux"; // Added Redux hooks
+import { useDispatch, useSelector } from "react-redux"; 
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
-import { registerUser } from "../../store/slices/authSlice"; // Import your thunk
+import { registerUser } from "../../store/slices/authSlice";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserRegister = () => {

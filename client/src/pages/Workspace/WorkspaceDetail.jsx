@@ -11,8 +11,6 @@ import { api } from '../../services/api';
 
 const TABS = [
     { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} /> },
-    { id: 'documents', label: 'Documents', icon: <FileText size={15} /> },
-    { id: 'members', label: 'Members', icon: <Users size={15} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={15} /> },
 ];
 
@@ -193,7 +191,6 @@ function DocumentsTab({ workspaceId, workspace }) {
                 </div>
             </div>
 
-            {/* Error */}
             {error && (
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'#fef2f2', borderBottom:'1px solid #fecaca', padding:'10px 24px' }}>
                     <AlertCircle size={14} color="#dc2626"/>
@@ -202,7 +199,6 @@ function DocumentsTab({ workspaceId, workspace }) {
                 </div>
             )}
 
-            {/* Create inline form */}
             {showCreate && (
                 <div style={{ padding:'14px 24px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', display:'flex', gap:'10px', alignItems:'center', animation:'fadeIn 0.15s ease' }}>
                     <FileText size={15} color="#2563eb" style={{ flexShrink:0 }}/>
@@ -217,7 +213,6 @@ function DocumentsTab({ workspaceId, workspace }) {
                 </div>
             )}
 
-            {/* Doc list */}
             <div>
                 {status === 'loading' ? (
                     <div style={{ padding:'40px', textAlign:'center' }}><Loader2 size={20} color="#94a3b8" style={{animation:'spin 0.75s linear infinite'}}/></div>
@@ -269,9 +264,7 @@ function DocumentsTab({ workspaceId, workspace }) {
     );
 }
 
-/* ════════════════════════════════════════
-   TAB: MEMBERS
-════════════════════════════════════════ */
+
 function MembersTab({ workspaceId, workspace }) {
     const [members, setMembers]       = useState([]);
     const [status, setStatus]         = useState('loading');
