@@ -4,64 +4,85 @@ import { api } from '../../services/api';
 import Swal from 'sweetalert2';
 
 export default function JoinWorkspace() {
-    // Destructure 'id' to match the path="/workspaces/join/:id" in App.jsx
-    const { id } = useParams(); 
+    // 1. Ensure your Route in App.js is: <Route path="/workspaces/join/:token" element={<JoinWorkspace />} />
+    const { token } = useParams(); 
     const navigate = useNavigate();
     const [status, setStatus] = useState('joining');
 
     useEffect(() => {
-        const performJoin = async () => {
-            // Guard clause: prevent execution if id is not yet available
-            if (!id || id === 'undefined') return;
+        const acceptInvitation = async () => {
+            // If the token is missing from the URL params, fail immediately
+            if (!token) {
+                console.error("No token detected in the URL.");
+                setStatus('error');
+                return;
+            }
 
             try {
-                // Hits the Django endpoint: /api/workspaces/workspace/<int:pk>/join/
-                await api.post(`workspaces/workspace/${id}/join/`);
-                
+                /** 
+                 * 2. URL ALIGNMENT:
+                 * Your backend path is: workspaces/invite/accept/<uuid:token>/
+                 * If your 'api' instance has a base URL like '/api/', 
+                 * the final request will be: /api/workspaces/invite/accept/{token}/
+                 */
+                const response = await api.post(`workspaces/workspaces/invite/accept/${token}/`);
+                const { workspace_id, message } = response.data;
+
                 Swal.fire({
                     icon: 'success',
-                    title: 'Joined!',
-                    text: 'You are now a member of this workspace.',
+                    title: 'Access Granted',
+                    text: message || 'Welcome to the workspace!',
                     timer: 2000,
                     showConfirmButton: false
                 });
                 
-                // Redirect to the workspace detail page
-                navigate(`/workspace/${id}`);
+                // Navigate to the specific workspace detail page
+                navigate(`/workspace/${workspace_id}`);
             } catch (err) {
-                console.error("Join Error:", err);
+                console.error("Invitation Error:", err.response?.data);
                 setStatus('error');
+                
+                const errorMessage = err.response?.data?.error || 'This link is invalid or has expired.';
+                
                 Swal.fire({
                     icon: 'error',
-                    title: 'Join Failed',
-                    text: err.response?.data?.detail || 'Something went wrong.'
+                    title: 'Invalid Invitation',
+                    text: errorMessage
                 });
             }
         };
 
-        performJoin();
-    }, [id, navigate]);
+        acceptInvitation();
+    }, [token, navigate]);
 
     return (
-        <div className="d-flex justify-content-center align-items-center vh-100">
-            {status === 'joining' ? (
-                <div className="text-center">
-                    <div className="spinner-border text-primary mb-3" role="status">
-                        <span className="visually-hidden">Loading...</span>
-                    </div>
-                    <p className="fw-bold">Joining workspace, please wait...</p>
-                </div>
-            ) : (
-                <div className="text-center">
-                    <p className="text-danger">Failed to join workspace. Redirecting...</p>
-                    <button 
-                        className="btn btn-primary" 
-                        onClick={() => navigate('/')}
-                    >
-                        Go to Dashboard
-                    </button>
-                </div>
-            )}
+        <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+            <div className="text-center p-5 bg-white shadow-lg rounded-4" style={{ maxWidth: '450px' }}>
+                {status === 'joining' ? (
+                    <>
+                        <div className="spinner-border text-primary mb-3" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <h4 className="fw-bold">Verifying Your Access</h4>
+                        <p className="text-muted">Please wait while we validate your secure invitation token...</p>
+                    </>
+                ) : (
+                    <>
+                        <div className="text-danger mb-3">
+                            {/* Using a standard Bootstrap icon or similar */}
+                            <i className="bi bi-x-circle-fill" style={{ fontSize: '3rem' }}></i>
+                        </div>
+                        <h4 className="fw-bold">Verification Failed</h4>
+                        <p className="text-muted">
+                            This invitation may have expired (48-hour limit), already been used, 
+                            or was sent to a different email address.
+                        </p>
+                        <button className="btn btn-primary w-100 rounded-pill mt-3" onClick={() => navigate('/')}>
+                            Return to Dashboard
+                        </button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

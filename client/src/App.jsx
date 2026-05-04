@@ -59,7 +59,7 @@ function App() {
           <Route path="notifications" element={<NotificationsPage/>} />
           <Route path="/workspace/:workspaceId/members" element={<WorkspaceMembers/>} />
           <Route path="/agent" element={<AgentTestPage/>} />
-          <Route path="/workspaces/join/:id" element={<JoinWorkspace/>} />
+          <Route path="/workspaces/join/:token" element={<JoinWorkspace/>} />
 
           <Route 
           path="/workspace/:workspaceId/documents" 
