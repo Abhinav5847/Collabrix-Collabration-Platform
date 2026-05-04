@@ -14,7 +14,8 @@ from .views import (
     VerifyOTPView,
     SaveFCMTokenView,
     CookieTokenRefreshView,
-    LogoutView
+    LogoutView,
+    AllUsersListView
 )
 
 urlpatterns = [
@@ -35,4 +36,5 @@ urlpatterns = [
     path("reset_pass/<uidb64>/<token>/", ResetPassView.as_view(), name="Reset_pass"),
     path("user/profile/", UserProfileView.as_view(), name="user-profile"),
     path('update-fcm-token/', SaveFCMTokenView.as_view(), name='update-fcm-token'),
+    path('users/', AllUsersListView.as_view(), name='all-users-list'),
 ]

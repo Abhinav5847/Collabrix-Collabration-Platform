@@ -27,6 +27,7 @@ from .serializers import (
     ResetPassSerializer,
     VerifyMFASerializer,
     VerifyOTPSerializer,
+    UserProfileSerializer,
 )
 from .utils.send_forgotpass_email import send_forgotpass_email
 from .utils.send_otp_email import send_otp_email
@@ -326,3 +327,14 @@ class CookieTokenRefreshView(TokenRefreshView):
             )
             del response.data['access']
         return response
+    
+class AllUsersListView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CookieJWTAuthentication]
+
+    def get(self, request):
+        # Fetch verified users, excluding the current logged-in user 
+        # so they don't invite themselves
+        users = User.objects.filter(is_verified=True).exclude(id=request.user.id)
+        serializer = UserProfileSerializer(users, many=True)
+        return Response(serializer.data, status=200)    

@@ -68,3 +68,8 @@ class ForgotPassSerializer(serializers.Serializer):
 
 class ResetPassSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'username']    
