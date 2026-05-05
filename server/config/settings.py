@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "apps.workspaces",
     "apps.docs",
     "apps.notifications",
+    "apps.collabrix_admin",
     "rest_framework",
     "corsheaders",
     'rest_framework_simplejwt.token_blacklist',

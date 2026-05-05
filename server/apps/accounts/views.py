@@ -78,8 +78,7 @@ class RegisterView(APIView):
     serializer_class = RegisterSerializer
 
     def post(self, request):
-        # Let raise_exception=True handle the 400 response automatically
-        # This ensures the structure is { "field_name": ["error"] }
+   
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -158,7 +157,7 @@ class LoginView(APIView):
         if not user.is_verified: return Response({"error": "Email not verified"}, status=403)
 
         refresh = RefreshToken.for_user(user)
-        response = Response({"message": "Login successful", "user_id": user.id}, status=200)
+        response = Response({"message": "Login successful", "user_id": user.id,"is_staff": user.is_staff}, status=200)
         return set_auth_cookies(response, refresh, user.id)
 
 class GoogleAuthView(APIView):
@@ -206,7 +205,8 @@ class GoogleAuthView(APIView):
                 "message": "Google Login Success",
                 "user": {
                     "email": user.email,
-                    "name": f"{user.first_name} {user.last_name}".strip()
+                    "name": f"{user.first_name} {user.last_name}".strip(),
+                    "is_staff": user.is_staff
                 }
             }, status=200)
 

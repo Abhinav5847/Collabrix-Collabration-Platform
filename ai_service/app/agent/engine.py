@@ -19,7 +19,7 @@ def create_agent_executor():
     llm_with_tools = llm.bind_tools(GLOBAL_TOOLS)
 
     async def call_model(state: AgentState, config: RunnableConfig):
-        # Explicitly tell the LLM it ONLY has create_workspace
+        
         system_instructions = SystemMessage(
             content=(
                 "You are the Collabrix Global Agent. "

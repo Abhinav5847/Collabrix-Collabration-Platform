@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/workspaces/", include("apps.workspaces.urls")),
     path("api/documents/", include("apps.docs.urls")),
     path("api/notifications/", include("apps.notifications.urls")),
+    path("api/collabrix_admin/", include("apps.collabrix_admin.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
