@@ -3,13 +3,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
-import { loginUser, fetchUserProfile, clearError } from "../../store/slices/authSlice";
+import { loginUser, clearError } from "../../store/slices/authSlice";
 import sendFCMTokenToBackend from "../../utils/fcm";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [fieldErrors, setFieldErrors] = useState({}); // Stores key-value error pairs
+  const [fieldErrors, setFieldErrors] = useState({}); 
   
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -21,7 +21,6 @@ const UserLogin = () => {
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-    // Production UX: Clear the red error state as soon as the user starts typing
     if (fieldErrors[e.target.name]) {
       setFieldErrors({ ...fieldErrors, [e.target.name]: "" });
     }
@@ -29,35 +28,36 @@ const UserLogin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setFieldErrors({}); // Reset UI state
+    setFieldErrors({}); 
 
     const resultAction = await dispatch(loginUser(form));
 
     if (loginUser.fulfilled.match(resultAction)) {
       toast.success("Welcome back!");
       
+      // Extract user data directly from the payload
+      const userData = resultAction.payload.user || resultAction.payload;
+
       try {
-        await sendFCMTokenToBackend(); // Sync notifications
+        await sendFCMTokenToBackend(); 
       } catch (err) {
         console.error("FCM failed:", err);
       }
 
-      await dispatch(fetchUserProfile()); // Identify user via HttpOnly cookie
-      setTimeout(() => navigate("/"), 1000);
+      // Navigate immediately based on staff status
+      if (userData.is_staff) {
+        navigate("/collabrix_admin", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
 
     } else {
       const errorData = resultAction.payload;
-
       if (typeof errorData === 'object' && errorData !== null) {
-        // 1. GLOBAL ERRORS (Toast)
-        // Check for common backend keys like 'non_field_errors' or 'detail'
         const globalMsg = errorData.non_field_errors || errorData.detail || errorData.error;
         if (globalMsg) {
           toast.error(Array.isArray(globalMsg) ? globalMsg[0] : globalMsg);
         }
-
-        // 2. FIELD ERRORS (Under the inputs)
-        // Map the rest of the keys (email, password) to the fieldErrors state
         setFieldErrors(errorData);
       } else {
         toast.error("An unexpected server error occurred.");
@@ -70,16 +70,16 @@ const UserLogin = () => {
     const redirectUri = "http://127.0.0.1:4000/google/callback";
     const scope = "email profile";
     const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-    window.location.href = googleUrl; // Redirect to Google OAuth
+    window.location.href = googleUrl; 
   };
 
   return (
     <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <ToastContainer position="top-right" autoClose={3000} />
       <div className="card shadow-sm p-4 border-0" style={{ width: "420px", borderRadius: "12px" }}>
         <h3 className="text-center mb-4 fw-bold text-dark">Login</h3>
 
         <form onSubmit={handleSubmit} noValidate>
-          {/* Email Field */}
           <div className="mb-3">
             <label className="form-label small fw-bold text-muted">Email Address</label>
             <input
@@ -91,15 +91,11 @@ const UserLogin = () => {
               onChange={handleChange}
               required
             />
-            {/* Field Error Display */}
             {fieldErrors.email && (
-              <div className="invalid-feedback animate__animated animate__fadeIn">
-                {Array.isArray(fieldErrors.email) ? fieldErrors.email[0] : fieldErrors.email}
-              </div>
+              <div className="invalid-feedback">{Array.isArray(fieldErrors.email) ? fieldErrors.email[0] : fieldErrors.email}</div>
             )}
           </div>
 
-          {/* Password Field */}
           <div className="mb-1">
             <label className="form-label small fw-bold text-muted">Password</label>
             <input
@@ -111,59 +107,39 @@ const UserLogin = () => {
               onChange={handleChange}
               required
             />
-            {/* Field Error Display */}
             {fieldErrors.password && (
-              <div className="invalid-feedback animate__animated animate__fadeIn">
-                {Array.isArray(fieldErrors.password) ? fieldErrors.password[0] : fieldErrors.password}
-              </div>
+              <div className="invalid-feedback">{Array.isArray(fieldErrors.password) ? fieldErrors.password[0] : fieldErrors.password}</div>
             )}
           </div>
 
           <div className="d-flex justify-content-end mb-4">
-            <button
-              type="button"
-              className="btn btn-link p-0 text-decoration-none small fw-semibold"
-              onClick={() => navigate("/forgot_password")}
-            >
+            <button type="button" className="btn btn-link p-0 text-decoration-none small fw-semibold" onClick={() => navigate("/forgot_password")}>
               Forgot Password?
             </button>
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary w-100 py-2 fw-bold shadow-sm"
-            disabled={loading}
-          >
+          <button type="submit" className="btn btn-primary w-100 py-2 fw-bold shadow-sm" disabled={loading}>
             {loading ? <span className="spinner-border spinner-border-sm me-2"></span> : "Sign In"}
           </button>
         </form>
 
         <div className="d-flex align-items-center my-4">
           <hr className="flex-grow-1 text-muted" />
-          <span className="px-3 text-muted x-small fw-bold">OR CONTINUE WITH</span>
+          <span className="px-3 text-muted x-small fw-bold">OR</span>
           <hr className="flex-grow-1 text-muted" />
         </div>
 
-        <button
-          type="button"
-          className="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center py-2 fw-semibold"
-          onClick={handleGoogleLogin}
-        >
+        <button type="button" className="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center py-2 fw-semibold" onClick={handleGoogleLogin}>
           <FcGoogle className="me-2" size={22} /> Google
         </button>
 
         <p className="mt-4 text-center text-muted small">
           New to Collabrix?{" "}
-          <button
-            className="btn btn-link p-0 fw-bold text-decoration-none"
-            onClick={() => navigate("/register")}
-          >
+          <button className="btn btn-link p-0 fw-bold text-decoration-none" onClick={() => navigate("/register")}>
             Create an account
           </button>
         </p>
       </div>
-
-      <ToastContainer position="top-right" autoClose={4000} hideProgressBar />
     </div>
   );
 };

@@ -60,6 +60,7 @@ export const fetchUserProfile = createAsyncThunk(
       const response = await api.get('accounts/user/profile/');
       return response.data;
     } catch (err) {
+      localStorage.removeItem('isAuthenticated');
       return rejectWithValue(err.response?.data || "Failed to load user profile");
     }
   }
@@ -115,7 +116,6 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
-// --- Slice ---
 
 const authSlice = createSlice({
   name: 'auth',
@@ -141,44 +141,58 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Success cases - Update state and stop loading simultaneously
       .addCase(googleLogin.fulfilled, (state, action) => {
-        state.loading = false;
         state.user = action.payload.user || action.payload;
         state.isAuthenticated = true;
-        state.error = null;
+        state.loading = false;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
-        state.loading = false;
         state.user = action.payload.user || action.payload;
         state.isAuthenticated = true;
-        state.error = null;
-      })
-      .addCase(registerUser.fulfilled, (state) => {
         state.loading = false;
-        state.error = null;
       })
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
-        state.loading = false;
         state.user = action.payload;
         state.isAuthenticated = true;
+        state.loading = false;
       })
       .addCase(fetchMfaQr.fulfilled, (state, action) => {
-        state.loading = false;
         state.qrImage = action.payload; 
+        state.loading = false;
       })
       .addCase(verifyMfa.fulfilled, (state) => {
-        state.loading = false;
         state.qrImage = null;
+        state.loading = false;
       })
+
+      // Error/Rejection cases
+      .addCase(fetchUserProfile.rejected, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+      })
+
+      // Matchers for broad state handling
       .addMatcher(
-        (action) => action.type.endsWith('/pending'),
-        (state) => { state.loading = true; state.error = null; }
+        (action) => action.type.startsWith('auth/') && action.type.endsWith('/pending'),
+        (state) => { 
+          state.loading = true; 
+          state.error = null; 
+        }
       )
       .addMatcher(
-        (action) => action.type.endsWith('/rejected'),
+        (action) => action.type.startsWith('auth/') && action.type.endsWith('/rejected'),
         (state, action) => {
           state.loading = false;
           state.error = action.payload;
+        }
+      )
+      // Final catch-all to ensure loading stops if missed elsewhere
+      .addMatcher(
+        (action) => action.type.startsWith('auth/') && action.type.endsWith('/fulfilled'),
+        (state) => {
+          state.loading = false;
         }
       );
   },

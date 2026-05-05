@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
     LayoutDashboard, Shield, Bell, ChevronRight, LogOut, 
-    User, Plus, ChevronsLeft, Building2, CircleUserRound, Grid2X2
+    User, Plus, ChevronsLeft, CircleUserRound, Grid2X2
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { fetchUserProfile, logout } from '../../store/slices/authSlice';
@@ -18,32 +18,46 @@ export default function WorkspaceLayout() {
     const location = useLocation();
     const dispatch = useDispatch();
 
-    const { user } = useSelector((state) => state.auth);
+    // Select the whole auth state to react to changes
+    const { user, isAuthenticated } = useSelector((state) => state.auth);
     const { list: workspaces } = useSelector((state) => state.workspaces);
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchInitialData = async () => {
             try {
+                // 1. Force fetch profile if we are authenticated but have no user object
+                // This ensures the Nav shows the name immediately after login/refresh
                 if (!user) {
                     await dispatch(fetchUserProfile()).unwrap();
                 }
+                
+                // 2. Always fetch workspaces to keep the sidebar synced
                 await dispatch(fetchWorkspaces()).unwrap();
                 
-                // Fetch unread notifications count from Django
+                // 3. Fetch notifications
                 const notifyRes = await api.get('notifications/');
-                const unread = notifyRes.data.filter(n => !n.is_read).length;
-                setUnreadCount(unread);
+                if (isMounted) {
+                    const unread = notifyRes.data.filter(n => !n.is_read).length;
+                    setUnreadCount(unread);
+                }
             } catch (err) {
-                if (err.response?.status === 401) {
+                console.error("Layout data fetch failed:", err);
+                // Only redirect if it's a 401 Unauthorized
+                if (err.status === 401 || err.response?.status === 401) {
                     dispatch(logout());
                     navigate('/login');
                 }
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
+
         fetchInitialData();
-    }, [dispatch, navigate, user]);
+
+        return () => { isMounted = false; };
+    }, [dispatch, navigate, isAuthenticated]); // Added isAuthenticated as a trigger
 
     const handleLogout = async () => {
         try {
@@ -56,8 +70,8 @@ export default function WorkspaceLayout() {
         }
     };
 
+    // ... (isActive and getPageTitle remain the same)
     const isActive = (path) => location.pathname === path;
-
     const getPageTitle = () => {
         if (location.pathname === '/') return 'Dashboard';
         if (location.pathname === '/enable_Mfa') return 'Security Settings';
@@ -67,7 +81,7 @@ export default function WorkspaceLayout() {
         return 'Collabrix';
     };
 
-    if (loading) return (
+    if (loading && !user) return (
         <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', gap: '12px' }}>
             <div style={{ width: '36px', height: '36px', border: '3px solid #e9ecef', borderTop: '3px solid #2563eb', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -79,8 +93,7 @@ export default function WorkspaceLayout() {
 
     return (
         <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', background: '#f1f5f9', fontFamily: "'Inter', system-ui, sans-serif" }}>
-
-            {/* ── CONSOLIDATED SIDEBAR ── */}
+            {/* Sidebar and Header logic remains the same, using user?.username directly ensures it updates when Redux updates */}
             <nav style={{ 
                 width: sidebarCollapsed ? '0px' : '260px', 
                 minWidth: sidebarCollapsed ? '0px' : '260px', 
@@ -93,7 +106,6 @@ export default function WorkspaceLayout() {
                 zIndex: 90 
             }}>
                 <div style={{ width: '260px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    {/* Brand Header */}
                     <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '32px', height: '32px', background: '#2563eb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '12px' }}>CX</div>
                         <div>
@@ -103,38 +115,28 @@ export default function WorkspaceLayout() {
                     </div>
 
                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
-                        {/* Main Section */}
                         <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 8px 8px' }}>Main</p>
                         <NavItem to="/" icon={<LayoutDashboard size={16} />} label="Dashboard" active={isActive('/')} />
                         <NavItem to="/profile" icon={<CircleUserRound size={16} />} label="Profile" active={isActive('/profile')} />
                         <NavItem to="/enable_Mfa" icon={<Shield size={16} />} label="Security" active={isActive('/enable_Mfa')} />
 
-                        {/* Workspaces Section - Integrated Page Links */}
                         <div style={{ marginTop: '24px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 8px 8px' }}>
                                 <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', margin: 0 }}>Workspaces</p>
                                 <Link to="/workspace/create" style={{ color: '#2563eb' }}><Plus size={14} /></Link>
                             </div>
-                            
                             {workspaces.map(ws => (
-                                <NavItem 
-                                    key={ws.id} 
-                                    to={`/workspace/${ws.id}`} 
-                                    icon={<Grid2X2 size={16} />} 
-                                    label={ws.name} 
-                                    active={location.pathname === `/workspace/${ws.id}`} 
-                                />
+                                <NavItem key={ws.id} to={`/workspace/${ws.id}`} icon={<Grid2X2 size={16} />} label={ws.name} active={location.pathname === `/workspace/${ws.id}`} />
                             ))}
                         </div>
                     </div>
 
-                    {/* Bottom User Profile */}
                     <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
                         <div className="dropdown">
                             <div data-bs-toggle="dropdown" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', transition: 'background 0.15s', background: '#f8fafc' }}>
                                 <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>{avatarInitial}</div>
                                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username || 'User'}</p>
+                                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username || 'Loading...'}</p>
                                 </div>
                                 <ChevronRight size={14} color="#94a3b8" />
                             </div>
@@ -142,18 +144,13 @@ export default function WorkspaceLayout() {
                                 <li><h6 className="dropdown-header">MY ACCOUNT</h6></li>
                                 <li><Link className="dropdown-item" to="/profile"><User size={14} /> View Profile</Link></li>
                                 <li><hr className="dropdown-divider" /></li>
-                                <li>
-                                    <button className="dropdown-item text-danger" onClick={handleLogout} style={{ fontWeight: 600, width: '100%', textAlign: 'left', border: 'none', background: 'none' }}>
-                                        <LogOut size={14} /> Log Out
-                                    </button>
-                                </li>
+                                <li><button className="dropdown-item text-danger" onClick={handleLogout} style={{ fontWeight: 600, width: '100%', textAlign: 'left', border: 'none', background: 'none' }}><LogOut size={14} /> Log Out</button></li>
                             </ul>
                         </div>
                     </div>
                 </div>
             </nav>
 
-            {/* ── MAIN CONTENT AREA ── */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                 <header style={{ height: '60px', minHeight: '60px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -171,16 +168,7 @@ export default function WorkspaceLayout() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button onClick={() => navigate('/notifications')} style={{ width: '36px', height: '36px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', position: 'relative' }}>
                             <Bell size={16} />
-                            {unreadCount > 0 && (
-                                <span style={{ 
-                                    position: 'absolute', top: '-4px', right: '-4px', minWidth: '18px', height: '18px', 
-                                    padding: '0 4px', borderRadius: '10px', background: '#ef4444', color: '#fff',
-                                    fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', 
-                                    justifyContent: 'center', border: '2px solid #fff' 
-                                }}>
-                                    {unreadCount}
-                                </span>
-                            )}
+                            {unreadCount > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-4px', minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '10px', background: '#ef4444', color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{unreadCount}</span>}
                         </button>
                         {user && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '4px 12px 4px 6px' }}>
