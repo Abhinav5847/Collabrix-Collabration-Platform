@@ -1,16 +1,15 @@
 import React, { useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ToastContainer, toast } from "react-toastify";
-import { verifyMfa } from "../../store/slices/authSlice"; 
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
+import { verifyMfa, fetchUserProfile } from "../../store/slices/authSlice"; 
 
 const VerifyOTP = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
-  const email = location.state?.email || "";
+  const email = location.state?.email || "your account";
   const { loading } = useSelector((state) => state.auth);
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -47,51 +46,41 @@ const VerifyOTP = () => {
     const resultAction = await dispatch(verifyMfa(otpCode));
 
     if (verifyMfa.fulfilled.match(resultAction)) {
-      toast.success(resultAction.payload.message || "MFA Verified!");
-      setTimeout(() => navigate("/"), 1500);
-    } else {
-      const errorData = resultAction.payload;
-      let message = "Invalid Code";
-
-      if (typeof errorData === 'string') {
-        message = errorData;
-      } else if (typeof errorData === 'object' && errorData !== null) {
-        if (errorData.error) {
-          message = typeof errorData.error === 'object' 
-            ? Object.values(errorData.error).flat().join(", ") 
-            : errorData.error;
-        } else {
-          message = Object.values(errorData).flat().join(", ");
-        }
-      }
+      toast.success("MFA Enabled Successfully!");
       
+      // Re-fetch profile to ensure all state flags (mfa_enabled) are fresh
+      await dispatch(fetchUserProfile());
+      
+      // Redirect to profile after a short delay
+      setTimeout(() => navigate("/profile"), 1000);
+    } else {
+      const message = resultAction.payload?.error || "Invalid Code";
       toast.error(message);
     }
   };
 
-  const handleGoBack = () => {
-    navigate(-1);
-  };
-
   return (
-    <div className="container-fluid d-flex justify-content-center align-items-center vh-100 bg-light p-3">
-      <div className="card shadow border-0 p-4 text-center w-100" style={{ maxWidth: "500px" }}>
-        <h3 className="card-title mb-2 fw-bold">MFA Verification</h3>
-        <p className="text-muted small mb-4">
-          Enter the 6-digit code from your Authenticator app for <br />
-          <span className="text-dark fw-bold">{email}</span>
+    <div className="container-fluid d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="card shadow-lg border-0 p-4 text-center" style={{ maxWidth: "450px" }}>
+        <div className="mb-3">
+          <i className="bi bi-shield-check text-primary" style={{ fontSize: "3rem" }}></i>
+        </div>
+        <h3 className="fw-bold">Verify MFA</h3>
+        <p className="text-muted mb-4">
+          Enter the 6-digit code from your Authenticator app for <br/>
+          <strong>{email}</strong>
         </p>
 
         <form onSubmit={handleSubmit}>
-          <div className="d-flex justify-content-center mb-4">
+          <div className="d-flex justify-content-between mb-4">
             {otp.map((digit, index) => (
               <input
                 key={index}
                 type="text"
-                maxLength="1"
-                className="form-control text-center mx-1 fw-bold shadow-sm"
-                style={{ width: "50px", height: "60px", fontSize: "1.5rem" }}
+                className="form-control text-center mx-1 fw-bold"
+                style={{ width: "45px", height: "55px", fontSize: "1.2rem" }}
                 value={digit}
+                maxLength="1"
                 onChange={(e) => handleChange(e, index)}
                 onKeyDown={(e) => handleKeyDown(e, index)}
                 ref={(el) => (inputsRef.current[index] = el)}
@@ -103,26 +92,21 @@ const VerifyOTP = () => {
 
           <button 
             type="submit" 
-            className="btn btn-primary btn-lg w-100 shadow-sm mb-3" 
+            className="btn btn-primary w-100 py-2 mb-3" 
             disabled={loading}
           >
-            {loading ? (
-              <span className="spinner-border spinner-border-sm me-2"></span>
-            ) : null}
-            Verify Code
+            {loading ? <span className="spinner-border spinner-border-sm me-2"></span> : "Confirm & Enable"}
           </button>
 
           <button 
             type="button" 
-            className="btn btn-outline-secondary w-100" 
-            onClick={handleGoBack}
-            disabled={loading}
+            className="btn btn-link text-decoration-none text-muted" 
+            onClick={() => navigate(-1)}
           >
-            Back to Scanner
+            Back to QR Code
           </button>
         </form>
       </div>
-      <ToastContainer />
     </div>
   );
 };

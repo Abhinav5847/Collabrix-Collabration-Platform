@@ -238,12 +238,21 @@ class UserProfileView(APIView):
 
     def get(self, request):
         user = request.user
+        # Check if MFA is enabled for this user
+        mfa_enabled = False
+        try:
+            mfa = UserMFA.objects.get(user=user)
+            mfa_enabled = mfa.is_enabled
+        except UserMFA.DoesNotExist:
+            mfa_enabled = False
+
         return Response({
             "id": user.id, 
             "email": user.email, 
             "username": user.username,
             "first_name": user.first_name, 
             "last_name": user.last_name,
+            "mfa_enabled": mfa_enabled,  # <--- CRITICAL: Add this line
         }, status=200)
 
 class EnableMfaView(APIView):
@@ -274,7 +283,11 @@ class VerifyMFAView(APIView):
             if pyotp.TOTP(mfa.secret).verify(serializer.validated_data["code"]):
                 mfa.is_enabled = True
                 mfa.save()
-                return Response({"message": "MFA enabled"})
+                
+                return Response({
+                    "message": "MFA enabled",
+                    "mfa_enabled": True 
+                })
             return Response({"error": "Invalid code"}, status=400)
         except UserMFA.DoesNotExist:
             return Response({"error": "MFA not setup"}, status=400)
@@ -353,8 +366,6 @@ class AllUsersListView(APIView):
     authentication_classes = [CookieJWTAuthentication]
 
     def get(self, request):
-        # Fetch verified users, excluding the current logged-in user 
-        # so they don't invite themselves
         users = User.objects.filter(is_verified=True).exclude(id=request.user.id)
         serializer = UserProfileSerializer(users, many=True)
         return Response(serializer.data, status=200)    

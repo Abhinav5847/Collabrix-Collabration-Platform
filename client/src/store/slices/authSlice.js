@@ -3,6 +3,9 @@ import { api } from '../../services/api';
 
 // --- Thunks ---
 
+/**
+ * Handles Google OAuth callback logic.
+ */
 export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
   async (code, { rejectWithValue }) => {
@@ -16,6 +19,9 @@ export const googleLogin = createAsyncThunk(
   }
 );
 
+/**
+ * Handles standard email/password login.
+ */
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (userData, { rejectWithValue }) => {
@@ -29,6 +35,9 @@ export const loginUser = createAsyncThunk(
   }
 );
 
+/**
+ * Registers a new user.
+ */
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
@@ -41,6 +50,9 @@ export const registerUser = createAsyncThunk(
   }
 );
 
+/**
+ * Verifies Email OTP.
+ */
 export const verifyOtp = createAsyncThunk(
   'auth/verifyOtp',
   async ({ email, otp }, { rejectWithValue }) => {
@@ -53,12 +65,16 @@ export const verifyOtp = createAsyncThunk(
   }
 );
 
+/**
+ * Fetches the current user's profile.
+ * Crucial for persistence after page refresh.
+ */
 export const fetchUserProfile = createAsyncThunk(
   'auth/fetchUserProfile',
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('accounts/user/profile/');
-      return response.data;
+      return response.data; // Expecting { ..., mfa_enabled: boolean }
     } catch (err) {
       localStorage.removeItem('isAuthenticated');
       return rejectWithValue(err.response?.data || "Failed to load user profile");
@@ -66,6 +82,9 @@ export const fetchUserProfile = createAsyncThunk(
   }
 );
 
+/**
+ * Fetches the QR code for MFA setup.
+ */
 export const fetchMfaQr = createAsyncThunk(
   'auth/fetchMfaQr',
   async (_, { rejectWithValue }) => {
@@ -80,18 +99,24 @@ export const fetchMfaQr = createAsyncThunk(
   }
 );
 
+/**
+ * Verifies the 6-digit TOTP code to enable MFA.
+ */
 export const verifyMfa = createAsyncThunk(
   'auth/verifyMfa',
   async (code, { rejectWithValue }) => {
     try {
       const response = await api.post("/accounts/verify_mfa/", { code });
-      return response.data;
+      return response.data; // Expected { message: "...", mfa_enabled: true }
     } catch (err) {
       return rejectWithValue(err.response?.data || "MFA Verification failed");
     }
   }
 );
 
+/**
+ * Request password reset email.
+ */
 export const forgotPassword = createAsyncThunk(
   'auth/forgotPassword',
   async (email, { rejectWithValue }) => {
@@ -104,6 +129,9 @@ export const forgotPassword = createAsyncThunk(
   }
 );
 
+/**
+ * Resets password using UID and Token.
+ */
 export const resetPassword = createAsyncThunk(
   'auth/resetPassword',
   async ({ uid, token, password }, { rejectWithValue }) => {
@@ -116,13 +144,15 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
+// --- Slice ---
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null, 
     isAuthenticated: localStorage.getItem('isAuthenticated') === 'true',
-    loading: false,
+    // Start loading as true if we have a session to check
+    loading: localStorage.getItem('isAuthenticated') === 'true',
     error: null,
     qrImage: null,
   },
@@ -141,7 +171,7 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Success cases - Update state and stop loading simultaneously
+      // Fulfilled Handlers
       .addCase(googleLogin.fulfilled, (state, action) => {
         state.user = action.payload.user || action.payload;
         state.isAuthenticated = true;
@@ -153,7 +183,7 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
-        state.user = action.payload;
+        state.user = action.payload; // Contains updated mfa_enabled status
         state.isAuthenticated = true;
         state.loading = false;
       })
@@ -161,19 +191,23 @@ const authSlice = createSlice({
         state.qrImage = action.payload; 
         state.loading = false;
       })
-      .addCase(verifyMfa.fulfilled, (state) => {
+      .addCase(verifyMfa.fulfilled, (state, action) => {
+        // Manually update the user status to avoid a second profile fetch
+        if (state.user) {
+          state.user.mfa_enabled = action.payload.mfa_enabled || true;
+        }
         state.qrImage = null;
         state.loading = false;
       })
 
-      // Error/Rejection cases
+      // Rejected Handlers
       .addCase(fetchUserProfile.rejected, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.loading = false;
       })
 
-      // Matchers for broad state handling
+      // Global Matchers for status management
       .addMatcher(
         (action) => action.type.startsWith('auth/') && action.type.endsWith('/pending'),
         (state) => { 
@@ -188,7 +222,6 @@ const authSlice = createSlice({
           state.error = action.payload;
         }
       )
-      // Final catch-all to ensure loading stops if missed elsewhere
       .addMatcher(
         (action) => action.type.startsWith('auth/') && action.type.endsWith('/fulfilled'),
         (state) => {

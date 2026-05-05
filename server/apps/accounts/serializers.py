@@ -2,6 +2,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from .models import User, UserMFA
 
 from .models import User
 
@@ -85,6 +86,16 @@ class ResetPassSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 class UserProfileSerializer(serializers.ModelSerializer):
+
+    mfa_enabled = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'email', 'username']    
+        fields = ['id', 'email', 'username','mfa_enabled', 'is_verified']
+
+    def get_mfa_enabled(self, obj):
+        # Check if a UserMFA record exists and if is_enabled is True
+        try:
+            return obj.usermfa.is_enabled
+        except UserMFA.DoesNotExist:
+            return False        

@@ -1,8 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import { 
-    User, Mail, ShieldCheck, Calendar, 
-    Edit3, Key, BadgeCheck 
+    User, Mail, ShieldCheck, Edit3, Key, BadgeCheck, ShieldAlert, CheckCircle2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -81,7 +80,7 @@ export default function Profile() {
                         <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#475569', marginBottom: '16px' }}>Account Details</h3>
                         
                         <div style={infoRowStyle}>
-                            <div style={{ color: '#2563eb', background: '#eff6ff', p: '10px', borderRadius: '10px' }}><Mail size={20} /></div>
+                            <div style={{ color: '#2563eb', background: '#eff6ff', padding: '10px', borderRadius: '10px' }}><Mail size={20} /></div>
                             <div>
                                 <p style={labelStyle}>Email Address</p>
                                 <p style={valueStyle}>{user.email}</p>
@@ -92,10 +91,27 @@ export default function Profile() {
                         </div>
 
                         <div style={infoRowStyle}>
-                            <div style={{ color: '#2563eb', background: '#eff6ff', p: '10px', borderRadius: '10px' }}><User size={20} /></div>
+                            <div style={{ color: '#2563eb', background: '#eff6ff', padding: '10px', borderRadius: '10px' }}><User size={20} /></div>
                             <div>
                                 <p style={labelStyle}>Full Name</p>
                                 <p style={valueStyle}>{user.first_name || 'Not set'} {user.last_name || ''}</p>
+                            </div>
+                        </div>
+
+                        {/* NEW: MFA Status Row in main section */}
+                        <div style={infoRowStyle}>
+                            <div style={{ 
+                                color: user.mfa_enabled ? '#10b981' : '#f59e0b', 
+                                background: user.mfa_enabled ? '#ecfdf5' : '#fffbeb', 
+                                padding: '10px', borderRadius: '10px' 
+                            }}>
+                                {user.mfa_enabled ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
+                            </div>
+                            <div>
+                                <p style={labelStyle}>Two-Factor Authentication</p>
+                                <p style={{ ...valueStyle, color: user.mfa_enabled ? '#10b981' : '#b45309' }}>
+                                    {user.mfa_enabled ? 'Active & Protected' : 'Not Enabled'}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -111,10 +127,17 @@ export default function Profile() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <Link to="/enable_Mfa" style={{ 
                                 textDecoration: 'none', padding: '12px', borderRadius: '10px', 
-                                background: '#f8fafc', border: '1px solid #f1f5f9', display: 'block' 
+                                background: user.mfa_enabled ? '#f0fdf4' : '#fffbeb', 
+                                border: user.mfa_enabled ? '1px solid #dcfce7' : '1px solid #fef3c7', 
+                                display: 'block' 
                             }}>
-                                <p style={{ margin: '0 0 4px 0', fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Two-Factor Auth</p>
-                                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Add an extra layer of security</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Two-Factor Auth</p>
+                                    {user.mfa_enabled && <CheckCircle2 size={14} color="#10b981" />}
+                                </div>
+                                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                                    {user.mfa_enabled ? 'Your account is extra secure.' : 'Add an extra layer of security.'}
+                                </p>
                             </Link>
 
                             <button style={{ 

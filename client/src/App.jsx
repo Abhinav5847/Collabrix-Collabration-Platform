@@ -49,16 +49,18 @@ import "react-toastify/dist/ReactToastify.css";
 function App() {
   const dispatch = useDispatch();
 
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated, user,loading } = useSelector((state) => state.auth);
 
   useEffect(() => {
-  const hasToken = localStorage.getItem('isAuthenticated') === 'true';
-  
-  // Only fetch if we have the auth flag but NO user object in Redux
-  if (hasToken && !user) {
-    dispatch(fetchUserProfile());
+    const hasToken = localStorage.getItem('isAuthenticated') === 'true';
+    if (hasToken && !user) {
+      dispatch(fetchUserProfile());
+    }
+  }, [dispatch, user]);
+
+  if (localStorage.getItem('isAuthenticated') === 'true' && !user && loading) {
+    return <div className="d-flex justify-content-center align-items-center vh-100">Loading Session...</div>;
   }
-}, [dispatch, user]);
 
   return (
     <>

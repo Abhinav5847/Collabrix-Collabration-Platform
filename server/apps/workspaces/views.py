@@ -13,6 +13,7 @@ from apps.notifications.tasks import process_workspace_invitation_task
 from django.conf import settings
 
 from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation
+from apps.accounts.models import UserMFA
 from .serializers import (
     WorkspaceMemberSerializer,
     WorkspaceMessageSerializer,
@@ -29,6 +30,7 @@ class WorkspaceListCreateView(APIView):
 
     def get(self, request):
         try:
+            # Filters workspaces where the current user is a member
             workspaces = WorkSpace.objects.filter(members__user=request.user)
             serializer = self.serializer_class(workspaces, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -38,16 +40,26 @@ class WorkspaceListCreateView(APIView):
             )
 
     def post(self, request):
+        # 1. Check if MFA is enabled for the user
         try:
-            serializer = self.serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
+            mfa_status = UserMFA.objects.get(user=request.user)
+            if not mfa_status.is_enabled:
+                return Response(
+                    {"error": "MFA must be enabled to create a workspace."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except UserMFA.DoesNotExist:
+            return Response(
+                {"error": "MFA setup is required to create a workspace."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-            serializer.save(owner=request.user)
-
+        # 2. Proceed with workspace creation if MFA is enabled
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        except DRFValidationError as e:
-            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class WorkspaceDetailView(APIView):
