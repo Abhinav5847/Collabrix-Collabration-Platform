@@ -46,6 +46,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import './App.css';
 import "react-toastify/dist/ReactToastify.css";
 
+
 function App() {
   const dispatch = useDispatch();
 
@@ -94,6 +95,7 @@ function App() {
               <Route path="/workspace/:workspaceId/documents" element={<DocumentList />} />
               <Route path="/documents/:pk" element={<DocumentDetail />} />
               <Route path="/workspace/:workspaceId/trash" element={<TrashManager />} />
+              
             </Route>
           </Route>
 

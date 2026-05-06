@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { 
-    Plus, ArrowRight, FolderOpen, RefreshCw, AlertCircle, 
-    FileText, MessageSquare, Users, Cpu, Settings 
+    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video 
 } from 'lucide-react';
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
+import VideoMeet from '../Workspace/VideoMeet';
 
 const COLORS = ['#2563eb','#0891b2','#7c3aed','#059669','#dc2626','#d97706'];
 const wsColor = (name) => COLORS[name.charCodeAt(0) % COLORS.length];
@@ -13,11 +14,31 @@ const wsColor = (name) => COLORS[name.charCodeAt(0) % COLORS.length];
 export default function Dashboard() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { list: workspaces, loading, error } = useSelector((s) => s.workspaces);
+    const { list: workspaces, loading } = useSelector((s) => s.workspaces);
+
+    const [meetData, setMeetData] = useState(null);
+    const [joiningId, setJoiningId] = useState(null);
 
     useEffect(() => { 
-        dispatch(fetchWorkspaces()); 
-    }, [dispatch]);
+        if (workspaces.length === 0) dispatch(fetchWorkspaces()); 
+    }, [dispatch, workspaces.length]);
+
+    useEffect(() => {
+        document.body.style.overflow = meetData ? 'hidden' : 'unset';
+    }, [meetData]);
+
+    const handleStartMeet = async (workspaceId) => {
+        setJoiningId(workspaceId);
+        try {
+            const response = await axios.get(`/api/workspaces/${workspaceId}/meet-token/`);
+            setMeetData(response.data);
+        } catch (err) {
+            console.error("Meeting failed:", err);
+            alert("Failed to initialize meeting.");
+        } finally {
+            setJoiningId(null);
+        }
+    };
 
     if (loading && workspaces.length === 0) return (
         <div className="d-flex flex-column align-items-center justify-content-center bg-white vh-100">
@@ -41,7 +62,6 @@ export default function Dashboard() {
                 </Link>
             </div>
 
-            {/* Workspace Grid */}
             <div className="row g-4 mb-5">
                 {workspaces.map(ws => (
                     <div key={ws.id} className="col-12 col-md-6 col-xl-4">
@@ -52,10 +72,7 @@ export default function Dashboard() {
                                         style={{ width: 44, height: 44, background: wsColor(ws.name) + '15', color: wsColor(ws.name) }}>
                                         {ws.name.substring(0, 2).toUpperCase()}
                                     </div>
-                                    <button 
-                                        className="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold"
-                                        onClick={() => navigate(`/workspace/${ws.id}/manage`)}
-                                    >
+                                    <button className="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold" onClick={() => navigate(`/workspace/${ws.id}/manage`)}>
                                         <Settings size={14} className="me-1" /> Manage
                                     </button>
                                 </div>
@@ -70,8 +87,8 @@ export default function Dashboard() {
                                     <button onClick={() => navigate(`/workspace/${ws.id}/chat`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-success">
                                         <MessageSquare size={14} /> Chat
                                     </button>
-                                    <button onClick={() => navigate(`/workspace/${ws.id}/members`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-info">
-                                        <Users size={14} /> Team
+                                    <button onClick={() => handleStartMeet(ws.id)} disabled={joiningId === ws.id} className="btn btn-link p-0 text-decoration-none small fw-bold text-danger">
+                                        {joiningId === ws.id ? <span className="spinner-border spinner-border-sm" /> : <Video size={14} />} Meet
                                     </button>
                                 </div>
                             </div>
@@ -80,14 +97,13 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Global Agent Bar */}
-            <div className="card border-0 shadow-sm bg-dark text-white p-3" style={{ borderRadius: '12px' }}>
+            <div className="card border-0 shadow-sm bg-dark text-white p-3 rounded-3 mt-auto">
                 <div className="d-flex align-items-center justify-content-between">
                     <div className="d-flex align-items-center gap-3">
                         <div className="bg-primary p-2 rounded-circle"><Cpu size={20} /></div>
                         <div>
                             <span className="fw-bold d-block">Collabrix Global Agent</span>
-                            <small className="text-secondary font-monospace">ENGINE: LLAMA-3.1-8B-INSTANT</small>
+                            <small className="text-secondary font-monospace text-uppercase">Engine: Llama-3.1-8b</small>
                         </div>
                     </div>
                     <button onClick={() => navigate('/agent')} className="btn btn-primary btn-sm px-4 fw-bold rounded-pill">
@@ -95,6 +111,22 @@ export default function Dashboard() {
                     </button>
                 </div>
             </div>
+
+            {/* THE FIX IS HERE: Added userMap={meetData.user_map} */}
+            {meetData && (
+                <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75" style={{ zIndex: 1050 }}>
+                    <div className="w-75 h-75 bg-dark rounded-3 shadow-lg overflow-hidden border border-secondary">
+                        <VideoMeet 
+                            appId={meetData.app_id}
+                            channel={meetData.channel_name}
+                            token={meetData.token}
+                            uid={meetData.uid}
+                            userMap={meetData.user_map} 
+                            onLeave={() => setMeetData(null)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
