@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from .serializers import UserSelectSerializer
+import os
 import requests
 import uuid
 from django.utils import timezone
@@ -54,12 +55,13 @@ class WorkspaceListCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # 2. Proceed with workspace creation if MFA is enabled
+        # 2. Proceed with workspace creation
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
-            serializer.save()
+            # Pass the owner explicitly here
+            serializer.save(owner=request.user) 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  
 
 
 class WorkspaceDetailView(APIView):
@@ -402,4 +404,6 @@ class AcceptInviteView(APIView):
             return Response(
                 {"error": "An error occurred while processing the invite.", "details": str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )        
+            ) 
+
+             
