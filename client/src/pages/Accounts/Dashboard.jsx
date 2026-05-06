@@ -49,6 +49,7 @@ export default function Dashboard() {
 
     return (
         <div className="container-fluid px-3 px-md-5 py-4 bg-light min-vh-100">
+            {/* Header */}
             <div className="d-flex justify-content-between align-items-end mb-4 pb-3 border-bottom">
                 <div>
                     <h4 className="fw-bold text-dark mb-1">Collabrix Workspace</h4>
@@ -62,6 +63,7 @@ export default function Dashboard() {
                 </Link>
             </div>
 
+            {/* Workspace Cards */}
             <div className="row g-4 mb-5">
                 {workspaces.map(ws => (
                     <div key={ws.id} className="col-12 col-md-6 col-xl-4">
@@ -78,17 +80,36 @@ export default function Dashboard() {
                                 </div>
 
                                 <h6 className="fw-bold text-dark mb-1">{ws.name}</h6>
-                                <p className="text-muted small mb-4">{ws.description || 'No description provided.'}</p>
+                                <p className="text-muted small mb-3">{ws.description || 'No description provided.'}</p>
 
-                                <div className="d-flex align-items-center gap-4 border-top pt-3">
-                                    <button onClick={() => navigate(`/workspace/${ws.id}/documents`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-primary">
-                                        <FileText size={14} /> Docs
-                                    </button>
-                                    <button onClick={() => navigate(`/workspace/${ws.id}/chat`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-success">
-                                        <MessageSquare size={14} /> Chat
-                                    </button>
-                                    <button onClick={() => handleStartMeet(ws.id)} disabled={joiningId === ws.id} className="btn btn-link p-0 text-decoration-none small fw-bold text-danger">
-                                        {joiningId === ws.id ? <span className="spinner-border spinner-border-sm" /> : <Video size={14} />} Meet
+                                {/* Member Indicator - Restored */}
+                                <div className="mb-4 d-flex align-items-center gap-2">
+                                    <div className="d-flex -space-x-2">
+                                        {/* This assumes your workspace object has a members array */}
+                                        <div className="bg-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: 28, height: 28 }}>
+                                            <Users size={12} className="text-primary" />
+                                        </div>
+                                    </div>
+                                    <span className="text-muted extra-small fw-bold">
+                                        {ws.member_count || ws.members?.length || 0} Members Tracked
+                                    </span>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="d-flex align-items-center justify-content-between border-top pt-3">
+                                    <div className="d-flex gap-3">
+                                        <button onClick={() => navigate(`/workspace/${ws.id}/documents`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-primary">
+                                            <FileText size={14} /> Docs
+                                        </button>
+                                        <button onClick={() => navigate(`/workspace/${ws.id}/chat`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-success">
+                                            <MessageSquare size={14} /> Chat
+                                        </button>
+                                        <button onClick={() => handleStartMeet(ws.id)} disabled={joiningId === ws.id} className="btn btn-link p-0 text-decoration-none small fw-bold text-danger">
+                                            {joiningId === ws.id ? <span className="spinner-border spinner-border-sm" /> : <Video size={14} />} Meet
+                                        </button>
+                                    </div>
+                                    <button onClick={() => navigate(`/workspace/${ws.id}/members`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-secondary">
+                                        <Users size={14} /> Team
                                     </button>
                                 </div>
                             </div>
@@ -97,6 +118,7 @@ export default function Dashboard() {
                 ))}
             </div>
 
+            {/* Global AI Agent Bar */}
             <div className="card border-0 shadow-sm bg-dark text-white p-3 rounded-3 mt-auto">
                 <div className="d-flex align-items-center justify-content-between">
                     <div className="d-flex align-items-center gap-3">
@@ -112,7 +134,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* THE FIX IS HERE: Added userMap={meetData.user_map} */}
+            {/* Meeting Modal with User Mapping */}
             {meetData && (
                 <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75" style={{ zIndex: 1050 }}>
                     <div className="w-75 h-75 bg-dark rounded-3 shadow-lg overflow-hidden border border-secondary">
