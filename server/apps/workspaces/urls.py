@@ -9,6 +9,10 @@ from .views import (
     AllUsersListView,
     JoinWorkspaceView,
     AcceptInviteView,
+    WorkspaceMeetTokenView,
+    MeetingUploadView,
+    MeetingSummaryUpdateView,
+    MeetingListView
 )
 
 urlpatterns = [
@@ -32,4 +36,9 @@ urlpatterns = [
     path('users/all/', AllUsersListView.as_view(), name='all-users-list'),
     path('workspace/<int:pk>/join/', JoinWorkspaceView.as_view(), name='workspace-join'),
     path('workspaces/invite/accept/<uuid:token>/', AcceptInviteView.as_view(), name='accept-invite'),
+    path('<int:pk>/meet-token/', WorkspaceMeetTokenView.as_view(), name='workspace-meet-token'),
+
+    path('<int:workspace_id>/process-meeting/', MeetingUploadView.as_view(), name='process-meeting'),
+    path('meetings/<int:meeting_id>/update-summary/', MeetingSummaryUpdateView.as_view(), name='update-summary'),
+    path('<int:workspace_id>/meetings/', MeetingListView.as_view(), name='meeting-list')
 ]

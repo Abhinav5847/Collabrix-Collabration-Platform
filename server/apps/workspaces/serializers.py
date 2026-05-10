@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation
+from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation,Meeting
 
 User = get_user_model()
 
@@ -52,3 +52,15 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
         model = WorkspaceInvitation
         fields = ['id', 'email', 'role', 'token', 'created_at', 'is_used']
         read_only_fields = ['token', 'created_at', 'is_used']
+
+class MeetingSerializer(serializers.ModelSerializer):
+    host_email = serializers.ReadOnlyField(source='host.email')
+    
+    class Meta:
+        model = Meeting
+        fields = [
+            'id', 'workspace', 'host', 'host_email', 
+            'audio_file', 'transcript', 'summary', 
+            'status', 'created_at'
+        ]
+        read_only_fields = ['transcript', 'summary', 'status', 'host']        

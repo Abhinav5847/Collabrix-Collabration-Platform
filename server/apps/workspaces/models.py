@@ -69,3 +69,50 @@ class WorkspaceInvitation(models.Model):
 
     def __str__(self):
         return f"Invite for {self.email} to {self.workspace.name}"        
+
+class Meeting(models.Model):
+    STATUS_CHOICES = [
+        ("recording", "Recording"),
+        ("processing", "Processing AI Summary"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    workspace = models.ForeignKey(
+        WorkSpace, 
+        on_delete=models.CASCADE, 
+        related_name="meetings"
+    )
+    # The member who initiated the meeting/recording
+    host = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name="hosted_meetings"
+    )
+    
+    # S3 integration: audio_file will automatically upload to S3 if 
+    # django-storages is configured in your settings.py
+    audio_file = models.FileField(
+        upload_to='meetings/recordings/%Y/%m/%d/', 
+        null=True, 
+        blank=True
+    )
+    
+    # AI Summary Data
+    transcript = models.TextField(blank=True, null=True)
+    summary = models.TextField(blank=True, null=True)
+    
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default="recording"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Meeting in {self.workspace.name} on {self.created_at.strftime('%Y-%m-%d')}"    
+    

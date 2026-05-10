@@ -205,9 +205,9 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "5000/day",
-        "user": "10000/hour",
-        "ai_action": "500/minute",
+        "anon": "50000/day",
+        "user": "100000/hour",
+        "ai_action": "5000/minute",
     },
 }
 
@@ -276,11 +276,38 @@ import os
 # AWS Credentials
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.environ.get('AWS_REGION', 'eu-north-1')
+AWS_REGION = os.environ.get('AWS_REGION', 'ap-south-1')
 FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME', 'send_fcm_notification')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.environ.get('AWS_REGION', 'ap-south-1')
+
+AWS_S3_ADDRESSING_STYLE = "virtual"
+
+INSTALLED_APPS += ['storages']
+
+# 3. Tell Django-storages how to behave
+
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
+AWS_S3_VERIFY = True
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+
+# 4. Set S3 as the default storage for FileFields
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 
 GROQ_API_KEY=os.environ.get('GROQ_API_KEY')
 GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY')
 
 N8N_WEBHOOK_URL = os.environ.get('N8N_WEBHOOK_URL')
+
+AGORA_APP_ID = os.environ.get('AGORA_APP_ID')
+AGORA_APP_CERTIFICATE = os.environ.get('AGORA_APP_CERTIFICATE')

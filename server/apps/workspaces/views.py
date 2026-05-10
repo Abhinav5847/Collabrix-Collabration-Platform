@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
@@ -13,13 +13,16 @@ from django.utils import timezone
 from apps.notifications.tasks import process_workspace_invitation_task
 from django.conf import settings
 
-from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation
+from .models import WorkSpace, WorkspaceMember, WorkspaceMessage,WorkspaceInvitation,Meeting
 from apps.accounts.models import UserMFA
+from rest_framework.parsers import MultiPartParser, FormParser
+from .agora_utils import generate_agora_token
 from .serializers import (
     WorkspaceMemberSerializer,
     WorkspaceMessageSerializer,
     WorkspaceSerializer,
     WorkspaceMemberSerializer,
+    MeetingSerializer
 )
 
 User = get_user_model()
@@ -405,5 +408,97 @@ class AcceptInviteView(APIView):
                 {"error": "An error occurred while processing the invite.", "details": str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 
+        
+class WorkspaceMeetTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        workspace = get_object_or_404(WorkSpace, pk=pk, members__user=request.user)
+        
+        channel_name = f"workspace_{workspace.id}"
+        uid = request.user.id
+        
+        token = generate_agora_token(channel_name, uid)
+        
+
+        members = workspace.members.all().select_related('user')
+        user_map = {member.user.id: member.user.username for member in members}
+        
+        return Response({
+            "token": token,
+            "channel_name": channel_name,
+            "uid": uid,
+            "app_id": settings.AGORA_APP_ID,
+            "user_map": user_map  
+        }) 
+class MeetingUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, workspace_id):
+        # 1. Get the file from React's 'audio' field
+        audio_file = request.FILES.get('audio')
+        
+        if not audio_file:
+            return Response({"error": "No audio file provided"}, status=400)
+
+        # 2. Save the record
+        # Note: we pass workspace_id and host manually
+        meeting = Meeting.objects.create(
+            workspace_id=workspace_id,
+            host=request.user,
+            audio_file=audio_file,
+            status='processing'
+        )
+
+        # 3. Notify FastAPI AI Service
+        # MATCH YOUR FASTAPI ROUTE: /meetings/process
+        ai_url = "http://ai_service:8001/meetings/process" 
+        
+        payload = {
+            "meeting_id": meeting.id,
+            "s3_url": meeting.audio_file.url, # The Mumbai S3 URL
+        }
+        
+        try:
+            # We use a tiny timeout because we don't want to wait for the transcript
+            requests.post(ai_url, json=payload, timeout=0.1)
+        except requests.exceptions.ReadTimeout:
+            # This is expected behavior for 'fire and forget'
+            pass
+        except Exception as e:
+            print(f"Error connecting to AI Service: {e}")
+
+        # Return the created meeting data
+        serializer = MeetingSerializer(meeting)
+        return Response(serializer.data, status=201)
+
+class MeetingListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, workspace_id):
+        # 1. Verify the user is a member of this workspace
+        workspace = get_object_or_404(WorkSpace, id=workspace_id, members__user=request.user)
+        
+        # 2. Get all meetings for this workspace, ordered by newest first
+        meetings = Meeting.objects.filter(workspace=workspace).order_by('-created_at')
+        
+        # 3. Serialize and return
+        serializer = MeetingSerializer(meetings, many=True)
+        return Response(serializer.data)        
+
+class MeetingSummaryUpdateView(APIView):
+    permission_classes = [AllowAny]
+    # This endpoint is called by your FastAPI service
+    def patch(self, request, meeting_id):
+        try:
+            meeting = Meeting.objects.get(id=meeting_id)
+            meeting.transcript = request.data.get('transcript')
+            meeting.summary = request.data.get('summary')
+            meeting.status = 'completed'
+            meeting.save()
+            return Response({"status": "updated"})
+        except Meeting.DoesNotExist:
+            return Response({"error": "Meeting not found"}, status=404)             
 
              
