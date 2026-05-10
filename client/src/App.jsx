@@ -27,6 +27,7 @@ import WorkspaceMembers from './pages/Workspace/WorkspaceMembers';
 import JoinWorkspace from './pages/Workspace/JoinWorkspace';
 import WorkspaceManagePage from './pages/Workspace/WorkSpaceSettings';
 
+
 // AI & Docs
 import CollabrixChat from './pages/ai/aiChatBot';
 import AgentTestPage from './pages/ai/AgentTestPage';
@@ -45,6 +46,9 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 // Styles
 import './App.css';
 import "react-toastify/dist/ReactToastify.css";
+import MeetingList from "./pages/Workspace/MeetingListPage";
+import MeetingSummaryList from "./pages/Workspace/MeetingDetailView";
+
 
 
 function App() {
@@ -76,7 +80,6 @@ function App() {
           <Route path="/google/callback" element={<GoogleCallback />} />
 
           {/* --- PROTECTED USER WORKSPACE ROUTES --- */}
-          {/* adminOnly={false} ensures any logged-in user can access */}
           <Route element={<ProtectedRoute adminOnly={false} />}>
             <Route element={<WorkspaceLayout />}>
               <Route path="/" element={<Dashboard />} />
@@ -96,11 +99,15 @@ function App() {
               <Route path="/documents/:pk" element={<DocumentDetail />} />
               <Route path="/workspace/:workspaceId/trash" element={<TrashManager />} />
               
+              {/* FIXED MEETING ROUTES */}
+              <Route path="/workspace/:workspaceId/meetings" element={<MeetingList/>} />
+              <Route path="/workspace/:workspaceId/summaries" element={<MeetingSummaryList/>} />
+              <Route path="/workspace/:workspaceId/summaries/:meetingId" element={<MeetingSummaryList/>} />
+              
             </Route>
           </Route>
 
           {/* --- PROTECTED ADMIN ROUTES --- */}
-          {/* adminOnly={true} triggers the is_staff check in ProtectedRoute */}
           <Route element={<ProtectedRoute adminOnly={true} />}>
             <Route path="/collabrix_admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} /> 
@@ -110,12 +117,10 @@ function App() {
             </Route>
           </Route>
 
-          {/* FALLBACK: Redirect any unknown route to home */}
           <Route path="*" element={<Dashboard />} />
         </Routes>
       </Router>
       
-      {/* Toast notifications for global feedback */}
       <ToastContainer 
         position="top-right" 
         autoClose={3000} 

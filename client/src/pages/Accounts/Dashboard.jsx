@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
-    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video 
+    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles 
 } from 'lucide-react';
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 import VideoMeet from '../Workspace/VideoMeet';
@@ -31,7 +31,10 @@ export default function Dashboard() {
         setJoiningId(workspaceId);
         try {
             const response = await axios.get(`/api/workspaces/${workspaceId}/meet-token/`);
-            setMeetData(response.data);
+            setMeetData({
+                ...response.data,
+                workspaceId: workspaceId 
+            });
         } catch (err) {
             console.error("Meeting failed:", err);
             alert("Failed to initialize meeting.");
@@ -82,22 +85,18 @@ export default function Dashboard() {
                                 <h6 className="fw-bold text-dark mb-1">{ws.name}</h6>
                                 <p className="text-muted small mb-3">{ws.description || 'No description provided.'}</p>
 
-                                {/* Member Indicator - Restored */}
                                 <div className="mb-4 d-flex align-items-center gap-2">
-                                    <div className="d-flex -space-x-2">
-                                        {/* This assumes your workspace object has a members array */}
-                                        <div className="bg-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: 28, height: 28 }}>
-                                            <Users size={12} className="text-primary" />
-                                        </div>
+                                    <div className="bg-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: 28, height: 28 }}>
+                                        <Users size={12} className="text-primary" />
                                     </div>
                                     <span className="text-muted extra-small fw-bold">
                                         {ws.member_count || ws.members?.length || 0} Members Tracked
                                     </span>
                                 </div>
 
-                                {/* Action Buttons */}
-                                <div className="d-flex align-items-center justify-content-between border-top pt-3">
-                                    <div className="d-flex gap-3">
+                                {/* Action Buttons - Updated with Meetings and Summary */}
+                                <div className="border-top pt-3">
+                                    <div className="d-flex flex-wrap gap-3 mb-2">
                                         <button onClick={() => navigate(`/workspace/${ws.id}/documents`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-primary">
                                             <FileText size={14} /> Docs
                                         </button>
@@ -108,9 +107,19 @@ export default function Dashboard() {
                                             {joiningId === ws.id ? <span className="spinner-border spinner-border-sm" /> : <Video size={14} />} Meet
                                         </button>
                                     </div>
-                                    <button onClick={() => navigate(`/workspace/${ws.id}/members`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-secondary">
-                                        <Users size={14} /> Team
-                                    </button>
+                                    <div className="d-flex align-items-center justify-content-between">
+                                        <div className="d-flex gap-3">
+                                            <button onClick={() => navigate(`/workspace/${ws.id}/meetings`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-dark">
+                                                <List size={14} /> Meetings
+                                            </button>
+                                            <button onClick={() => navigate(`/workspace/${ws.id}/summaries`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-warning shadow-none">
+                                                <Sparkles size={14} /> AI Summary
+                                            </button>
+                                        </div>
+                                        <button onClick={() => navigate(`/workspace/${ws.id}/members`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-secondary">
+                                            <Users size={14} /> Team
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -134,7 +143,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Meeting Modal with User Mapping */}
+            {/* Meeting Modal */}
             {meetData && (
                 <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75" style={{ zIndex: 1050 }}>
                     <div className="w-75 h-75 bg-dark rounded-3 shadow-lg overflow-hidden border border-secondary">
@@ -143,6 +152,7 @@ export default function Dashboard() {
                             channel={meetData.channel_name}
                             token={meetData.token}
                             uid={meetData.uid}
+                            workspaceId={meetData.workspaceId} 
                             userMap={meetData.user_map} 
                             onLeave={() => setMeetData(null)}
                         />
