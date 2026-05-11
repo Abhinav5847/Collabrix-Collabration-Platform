@@ -6,7 +6,8 @@ import {
   MdPeople, 
   MdSettings, 
   MdLogout, 
-  MdSecurity 
+  MdSecurity, 
+  MdWorkspaces
 } from "react-icons/md";
 import { logout } from "../../store/slices/authSlice";
 
@@ -22,11 +23,10 @@ const AdminLayout = () => {
   };
 
   const menuItems = [
-    { name: "Dashboard", path: "/collabrix_admin", icon: <MdDashboard size={20} /> },
-    { name: "Users", path: "/admin/users", icon: <MdPeople size={20} /> },
-    { name: "Security", path: "/admin/security", icon: <MdSecurity size={20} /> },
-    { name: "Settings", path: "/admin/settings", icon: <MdSettings size={20} /> },
-  ];
+  { name: "Dashboard", path: "/collabrix_admin", icon: <MdDashboard size={20} /> },
+  { name: "Users", path: "/collabrix_admin/users", icon: <MdPeople size={20} /> },
+  { name: "Workspaces", path: "/collabrix_admin/workspaces", icon: <MdWorkspaces size={20} /> }, // Add this
+];
 
   return (
     <div className="d-flex" style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>

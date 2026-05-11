@@ -38,7 +38,7 @@ const workspaceSlice = createSlice({
     initialState: {
         list: [],
         members: [],
-        allUsers: [], // For the invitation list
+        allUsers: [], 
         loading: false,
         status: 'idle', 
         error: null,

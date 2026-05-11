@@ -48,6 +48,8 @@ import './App.css';
 import "react-toastify/dist/ReactToastify.css";
 import MeetingList from "./pages/Workspace/MeetingListPage";
 import MeetingSummaryList from "./pages/Workspace/MeetingDetailView";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminWorkspaces from "./pages/admin/AdminWorkspaces";
 
 
 
@@ -109,13 +111,18 @@ function App() {
 
           {/* --- PROTECTED ADMIN ROUTES --- */}
           <Route element={<ProtectedRoute adminOnly={true} />}>
-            <Route path="/collabrix_admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboard />} /> 
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="users" element={<div>User Management Page</div>} />
-              <Route path="settings" element={<div>Admin Settings Page</div>} />
-            </Route>
-          </Route>
+  <Route path="/collabrix_admin" element={<AdminLayout />}>
+    <Route index element={<AdminDashboard />} /> 
+    <Route path="dashboard" element={<AdminDashboard />} />
+    
+    {/* Corrected paths to match Sidebar NavLinks */}
+    <Route path="users" element={<AdminUsers/>} /> 
+    <Route path="workspaces" element={<AdminWorkspaces/>} />
+    
+    <Route path="security" element={<div>Security Analytics</div>} />
+    <Route path="settings" element={<div>Admin Settings Page</div>} />
+  </Route>
+</Route>
 
           <Route path="*" element={<Dashboard />} />
         </Routes>
