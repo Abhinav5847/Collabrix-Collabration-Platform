@@ -3,162 +3,448 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
-    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles 
+    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles, X
 } from 'lucide-react';
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 import VideoMeet from '../Workspace/VideoMeet';
 
-const COLORS = ['#2563eb','#0891b2','#7c3aed','#059669','#dc2626','#d97706'];
-const wsColor = (name) => COLORS[name.charCodeAt(0) % COLORS.length];
+/* ─── Brand Tokens ───────────────────────────────────────────────────────── */
+const t = {
+  navy:      "#0B1120",
+  indigo:    "#4F6EF7",
+  indigoBg:  "#EEF1FF",
+  indigoHov: "#3D5CE8",
+  surface:   "#FFFFFF",
+  bg:        "#F4F6FB",
+  border:    "#E4E7F0",
+  text:      "#1A2236",
+  textSoft:  "#4B5568",
+  muted:     "#8A94A6",
+  danger:    "#E53E3E",
+  success:   "#10B981",
+  warning:   "#F59E0B",
+  purple:    "#8B5CF6",
+};
 
+const WS_COLORS = [t.indigo, '#0891B2', t.purple, t.success, t.danger, t.warning];
+const wsColor   = (name) => WS_COLORS[name.charCodeAt(0) % WS_COLORS.length];
+
+/* ─── Meet Options Modal ─────────────────────────────────────────────────── */
+function MeetOptionsModal({ workspace, onClose, onStartMeet, joiningId }) {
+  const navigate = useNavigate();
+  const color = wsColor(workspace.name);
+
+  const options = [
+    {
+      icon: <Video size={20} />,
+      label: 'Start Video Meet',
+      desc: 'Launch a live HD video call with your team',
+      color: t.danger,
+      bg: '#FFF5F5',
+      action: () => { onStartMeet(workspace.id); onClose(); },
+      loading: joiningId === workspace.id,
+    },
+    {
+      icon: <List size={20} />,
+      label: 'Meeting History',
+      desc: 'Browse all past recorded meetings',
+      color: t.indigo,
+      bg: t.indigoBg,
+      action: () => { navigate(`/workspace/${workspace.id}/meetings`); onClose(); },
+    },
+    {
+      icon: <Sparkles size={20} />,
+      label: 'AI Summaries',
+      desc: 'Read AI-generated meeting summaries',
+      color: t.warning,
+      bg: '#FFFBEB',
+      action: () => { navigate(`/workspace/${workspace.id}/summaries`); onClose(); },
+    },
+  ];
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1060,
+      background: 'rgba(11,17,32,0.65)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: "'DM Sans', sans-serif",
+    }} onClick={onClose}>
+      <div style={{
+        background: t.surface, borderRadius: 20,
+        padding: '28px 28px 24px',
+        width: '100%', maxWidth: 420,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: color + '18', color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: 13,
+            }}>{workspace.name.substring(0, 2).toUpperCase()}</div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: t.text }}>{workspace.name}</p>
+              <p style={{ margin: 0, fontSize: 12, color: t.muted }}>Choose a meeting option</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            width: 30, height: 30, borderRadius: 8,
+            border: `1px solid ${t.border}`, background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: t.muted,
+          }}><X size={14} /></button>
+        </div>
+
+        {/* Options */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {options.map((opt) => (
+            <button key={opt.label} onClick={opt.action} disabled={opt.loading} style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '13px 15px', borderRadius: 12,
+              border: `1.5px solid ${t.border}`,
+              background: t.surface, cursor: 'pointer',
+              textAlign: 'left', width: '100%',
+              transition: 'border-color .15s, background .15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = opt.color; e.currentTarget.style.background = opt.bg; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.background = t.surface; }}
+            >
+              <div style={{
+                width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+                background: opt.bg, color: opt.color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {opt.loading
+                  ? <div style={{ width: 16, height: 16, border: `2px solid ${opt.color}40`, borderTopColor: opt.color, borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                  : opt.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: t.text }}>{opt.label}</p>
+                <p style={{ margin: 0, fontSize: 12, color: t.muted }}>{opt.desc}</p>
+              </div>
+              <ArrowRight size={14} color={t.muted} style={{ flexShrink: 0 }} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Workspace Card ─────────────────────────────────────────────────────── */
+function WorkspaceCard({ ws, onMeetClick, navigate }) {
+  const color = wsColor(ws.name);
+  const [hov, setHov] = useState(false);
+
+  const actions = [
+    { icon: <FileText size={13} />, label: 'Docs',  color: t.indigo,  path: `/workspace/${ws.id}/documents` },
+    { icon: <MessageSquare size={13} />, label: 'Chat', color: t.success, path: `/workspace/${ws.id}/chat` },
+    { icon: <Users size={13} />, label: 'Team',     color: t.purple,  path: `/workspace/${ws.id}/members` },
+  ];
+
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 16,
+      border: `1.5px solid ${hov ? color + '55' : t.border}`,
+      padding: '20px 20px 16px',
+      display: 'flex', flexDirection: 'column', height: '100%',
+      transition: 'border-color .2s, box-shadow .2s',
+      boxShadow: hov ? `0 8px 28px ${color}15` : '0 2px 8px rgba(0,0,0,0.04)',
+    }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+    >
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 13 }}>
+        <div style={{
+          width: 42, height: 42, borderRadius: 10,
+          background: color + '18', color,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontWeight: 700, fontSize: 13,
+        }}>{ws.name.substring(0, 2).toUpperCase()}</div>
+
+        <button onClick={() => navigate(`/workspace/${ws.id}`)} style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '6px 11px', borderRadius: 8,
+          border: `1px solid ${t.border}`, background: t.bg,
+          fontSize: 12, fontWeight: 600, color: t.textSoft,
+          cursor: 'pointer',
+        }}>
+          <Settings size={12} /> Manage
+        </button>
+      </div>
+
+      <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 14.5, color: t.text }}>{ws.name}</p>
+      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: t.muted, lineHeight: 1.55, flex: 1 }}>
+        {ws.description || 'No description provided.'}
+      </p>
+
+      {/* Members pill */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+        <div style={{
+          width: 24, height: 24, borderRadius: '50%',
+          background: t.indigoBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}><Users size={11} color={t.indigo} /></div>
+        <span style={{ fontSize: 12, color: t.muted, fontWeight: 500 }}>
+          {ws.member_count || ws.members?.length || 0} members
+        </span>
+      </div>
+
+      {/* Action row */}
+      <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {actions.map(a => (
+            <button key={a.label} onClick={() => navigate(a.path)} style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 9px', borderRadius: 7,
+              border: `1px solid ${t.border}`, background: t.surface,
+              fontSize: 12, fontWeight: 600, color: a.color,
+              cursor: 'pointer', transition: 'background .15s',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = t.bg}
+              onMouseLeave={e => e.currentTarget.style.background = t.surface}
+            >
+              {a.icon} {a.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Meet — opens modal */}
+        <button onClick={() => onMeetClick(ws)} style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '5px 11px', borderRadius: 7,
+          border: 'none', background: '#FFF1F1',
+          fontSize: 12, fontWeight: 600, color: t.danger,
+          cursor: 'pointer', transition: 'background .15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.background = '#FFE0E0'}
+          onMouseLeave={e => e.currentTarget.style.background = '#FFF1F1'}
+        >
+          <Video size={13} /> Meet
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Dashboard ──────────────────────────────────────────────────────────── */
 export default function Dashboard() {
-    const dispatch = useDispatch();
-    const navigate = useNavigate();
-    const { list: workspaces, loading } = useSelector((s) => s.workspaces);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { list: workspaces, loading } = useSelector((s) => s.workspaces);
 
-    const [meetData, setMeetData] = useState(null);
-    const [joiningId, setJoiningId] = useState(null);
+  const [meetData,    setMeetData]    = useState(null);
+  const [joiningId,   setJoiningId]   = useState(null);
+  const [meetModalWs, setMeetModalWs] = useState(null);
 
-    useEffect(() => { 
-        if (workspaces.length === 0) dispatch(fetchWorkspaces()); 
-    }, [dispatch, workspaces.length]);
+  useEffect(() => {
+    if (workspaces.length === 0) dispatch(fetchWorkspaces());
+  }, [dispatch, workspaces.length]);
 
-    useEffect(() => {
-        document.body.style.overflow = meetData ? 'hidden' : 'unset';
-    }, [meetData]);
+  useEffect(() => {
+    document.body.style.overflow = (meetData || meetModalWs) ? 'hidden' : 'unset';
+  }, [meetData, meetModalWs]);
 
-    const handleStartMeet = async (workspaceId) => {
-        setJoiningId(workspaceId);
-        try {
-            const response = await axios.get(`/api/workspaces/${workspaceId}/meet-token/`);
-            setMeetData({
-                ...response.data,
-                workspaceId: workspaceId 
-            });
-        } catch (err) {
-            console.error("Meeting failed:", err);
-            alert("Failed to initialize meeting.");
-        } finally {
-            setJoiningId(null);
-        }
-    };
+  const handleStartMeet = async (workspaceId) => {
+    setJoiningId(workspaceId);
+    try {
+      const response = await axios.get(`/api/workspaces/${workspaceId}/meet-token/`);
+      setMeetData({ ...response.data, workspaceId });
+    } catch (err) {
+      console.error("Meeting failed:", err);
+      alert("Failed to initialize meeting.");
+    } finally {
+      setJoiningId(null);
+    }
+  };
 
-    if (loading && workspaces.length === 0) return (
-        <div className="d-flex flex-column align-items-center justify-content-center bg-white vh-100">
-            <div className="spinner-border text-primary mb-3" />
-            <small className="text-muted fw-bold font-monospace">SYNCING_RESOURCES...</small>
+  if (loading && workspaces.length === 0) return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', height: '60vh', gap: 12,
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ width: 26, height: 26, border: `2.5px solid ${t.indigoBg}`, borderTopColor: t.indigo, borderRadius: '50%', animation: 'spin .75s linear infinite' }} />
+      <span style={{ fontSize: 13, color: t.muted }}>Loading workspaces…</span>
+    </div>
+  );
+
+  return (
+    <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
+      {/* ── Page header ── */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+        marginBottom: 28, paddingBottom: 20, borderBottom: `1px solid ${t.border}`,
+      }}>
+        <div>
+          <h2 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: t.text, letterSpacing: '-0.4px' }}>
+            Dashboard
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: t.muted, fontSize: 13 }}>
+            <FolderOpen size={14} />
+            <span>{workspaces.length} active workspace{workspaces.length !== 1 ? 's' : ''}</span>
+          </div>
         </div>
-    );
+        <Link to="/workspace/create" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+          padding: '9px 18px', borderRadius: 10,
+          background: t.indigo, color: '#fff',
+          textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
+        }}>
+          <Plus size={15} /> New Workspace
+        </Link>
+      </div>
 
-    return (
-        <div className="container-fluid px-3 px-md-5 py-4 bg-light min-vh-100">
-            {/* Header */}
-            <div className="d-flex justify-content-between align-items-end mb-4 pb-3 border-bottom">
-                <div>
-                    <h4 className="fw-bold text-dark mb-1">Collabrix Workspace</h4>
-                    <div className="d-flex align-items-center gap-2 text-muted small">
-                        <FolderOpen size={14} />
-                        <span>{workspaces.length} Active Nodes</span>
-                    </div>
-                </div>
-                <Link to="/workspace/create" className="btn btn-primary d-flex align-items-center gap-2 rounded-pill px-4 shadow-sm fw-semibold">
-                    <Plus size={18} /> New Workspace
-                </Link>
-            </div>
-
-            {/* Workspace Cards */}
-            <div className="row g-4 mb-5">
-                {workspaces.map(ws => (
-                    <div key={ws.id} className="col-12 col-md-6 col-xl-4">
-                        <div className="card border-0 shadow-sm h-100">
-                            <div className="card-body p-4">
-                                <div className="d-flex align-items-start justify-content-between mb-3">
-                                    <div className="rounded-3 d-flex align-items-center justify-content-center fw-bold shadow-sm"
-                                        style={{ width: 44, height: 44, background: wsColor(ws.name) + '15', color: wsColor(ws.name) }}>
-                                        {ws.name.substring(0, 2).toUpperCase()}
-                                    </div>
-                                    <button className="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-bold" onClick={() => navigate(`/workspace/${ws.id}/manage`)}>
-                                        <Settings size={14} className="me-1" /> Manage
-                                    </button>
-                                </div>
-
-                                <h6 className="fw-bold text-dark mb-1">{ws.name}</h6>
-                                <p className="text-muted small mb-3">{ws.description || 'No description provided.'}</p>
-
-                                <div className="mb-4 d-flex align-items-center gap-2">
-                                    <div className="bg-light border rounded-circle d-flex align-items-center justify-content-center" style={{ width: 28, height: 28 }}>
-                                        <Users size={12} className="text-primary" />
-                                    </div>
-                                    <span className="text-muted extra-small fw-bold">
-                                        {ws.member_count || ws.members?.length || 0} Members Tracked
-                                    </span>
-                                </div>
-
-                                {/* Action Buttons - Updated with Meetings and Summary */}
-                                <div className="border-top pt-3">
-                                    <div className="d-flex flex-wrap gap-3 mb-2">
-                                        <button onClick={() => navigate(`/workspace/${ws.id}/documents`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-primary">
-                                            <FileText size={14} /> Docs
-                                        </button>
-                                        <button onClick={() => navigate(`/workspace/${ws.id}/chat`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-success">
-                                            <MessageSquare size={14} /> Chat
-                                        </button>
-                                        <button onClick={() => handleStartMeet(ws.id)} disabled={joiningId === ws.id} className="btn btn-link p-0 text-decoration-none small fw-bold text-danger">
-                                            {joiningId === ws.id ? <span className="spinner-border spinner-border-sm" /> : <Video size={14} />} Meet
-                                        </button>
-                                    </div>
-                                    <div className="d-flex align-items-center justify-content-between">
-                                        <div className="d-flex gap-3">
-                                            <button onClick={() => navigate(`/workspace/${ws.id}/meetings`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-dark">
-                                                <List size={14} /> Meetings
-                                            </button>
-                                            <button onClick={() => navigate(`/workspace/${ws.id}/summaries`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-warning shadow-none">
-                                                <Sparkles size={14} /> AI Summary
-                                            </button>
-                                        </div>
-                                        <button onClick={() => navigate(`/workspace/${ws.id}/members`)} className="btn btn-link p-0 text-decoration-none small fw-bold text-secondary">
-                                            <Users size={14} /> Team
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Global AI Agent Bar */}
-            <div className="card border-0 shadow-sm bg-dark text-white p-3 rounded-3 mt-auto">
-                <div className="d-flex align-items-center justify-content-between">
-                    <div className="d-flex align-items-center gap-3">
-                        <div className="bg-primary p-2 rounded-circle"><Cpu size={20} /></div>
-                        <div>
-                            <span className="fw-bold d-block">Collabrix Global Agent</span>
-                            <small className="text-secondary font-monospace text-uppercase">Engine: Llama-3.1-8b</small>
-                        </div>
-                    </div>
-                    <button onClick={() => navigate('/agent')} className="btn btn-primary btn-sm px-4 fw-bold rounded-pill">
-                        MEET_AGENT <ArrowRight size={14} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Meeting Modal */}
-            {meetData && (
-                <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75" style={{ zIndex: 1050 }}>
-                    <div className="w-75 h-75 bg-dark rounded-3 shadow-lg overflow-hidden border border-secondary">
-                        <VideoMeet 
-                            appId={meetData.app_id}
-                            channel={meetData.channel_name}
-                            token={meetData.token}
-                            uid={meetData.uid}
-                            workspaceId={meetData.workspaceId} 
-                            userMap={meetData.user_map} 
-                            onLeave={() => setMeetData(null)}
-                        />
-                    </div>
-                </div>
-            )}
+      {/* ── Welcome banner ── */}
+      <div style={{
+        background: t.navy, borderRadius: 14,
+        padding: '20px 24px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        overflow: 'hidden', position: 'relative',
+      }}>
+        {/* subtle orb */}
+        <div style={{ position: 'absolute', width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,110,247,0.2) 0%, transparent 70%)', top: -60, left: -40, pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <p style={{ margin: '0 0 3px', fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+            Welcome to Collabrix
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+            Your all-in-one platform for documents, video calls, and team collaboration.
+          </p>
         </div>
-    );
+        <div style={{ display: 'flex', gap: 10, position: 'relative', zIndex: 1, flexShrink: 0 }}>
+          {[
+            { label: 'Docs', color: t.indigo },
+            { label: 'Video', color: t.danger },
+            { label: 'AI', color: t.warning },
+            { label: 'Chat', color: t.success },
+          ].map(f => (
+            <div key={f.label} style={{
+              padding: '4px 10px', borderRadius: 20,
+              background: f.color + '22',
+              border: `1px solid ${f.color}44`,
+              fontSize: 11.5, fontWeight: 600, color: f.color,
+            }}>{f.label}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Empty state ── */}
+      {workspaces.length === 0 && (
+        <div style={{
+          background: t.surface, borderRadius: 16,
+          border: `1.5px dashed ${t.border}`,
+          padding: '56px 40px', textAlign: 'center', marginBottom: 32,
+        }}>
+          <div style={{ width: 52, height: 52, borderRadius: 13, background: t.indigoBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <FolderOpen size={22} color={t.indigo} />
+          </div>
+          <p style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: '0 0 5px' }}>No workspaces yet</p>
+          <p style={{ fontSize: 13, color: t.muted, margin: '0 0 20px' }}>Create your first workspace to start collaborating</p>
+          <Link to="/workspace/create" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '9px 18px', borderRadius: 10,
+            background: t.indigo, color: '#fff',
+            textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
+          }}><Plus size={14} /> Create Workspace</Link>
+        </div>
+      )}
+
+      {/* ── Workspace grid ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: 18, marginBottom: 30,
+      }}>
+        {workspaces.map(ws => (
+          <WorkspaceCard
+            key={ws.id}
+            ws={ws}
+            navigate={navigate}
+            joiningId={joiningId}
+            onMeetClick={(ws) => setMeetModalWs(ws)}
+          />
+        ))}
+      </div>
+
+      {/* ── AI Agent Bar ── */}
+      <div style={{
+        background: t.navy, borderRadius: 14,
+        padding: '16px 22px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: t.indigo,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Cpu size={19} color="#fff" />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#fff' }}>Collabrix Global Agent</p>
+            <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.38)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Engine: Llama-3.1-8b
+            </p>
+          </div>
+        </div>
+        <button onClick={() => navigate('/agent')} style={{
+          display: 'flex', alignItems: 'center', gap: 7,
+          padding: '9px 18px', borderRadius: 9,
+          background: t.indigo, color: '#fff',
+          border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          transition: 'background .15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.background = t.indigoHov}
+          onMouseLeave={e => e.currentTarget.style.background = t.indigo}
+        >
+          Open Agent <ArrowRight size={13} />
+        </button>
+      </div>
+
+      {/* ── Meet Options Modal ── */}
+      {meetModalWs && (
+        <MeetOptionsModal
+          workspace={meetModalWs}
+          onClose={() => setMeetModalWs(null)}
+          onStartMeet={handleStartMeet}
+          joiningId={joiningId}
+        />
+      )}
+
+      {/* ── Video Meet Modal ── */}
+      {meetData && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1050,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(11,17,32,0.8)',
+        }}>
+          <div style={{
+            width: '75%', height: '75%',
+            background: '#0B1120', borderRadius: 16,
+            overflow: 'hidden', border: `1px solid rgba(255,255,255,0.1)`,
+          }}>
+            <VideoMeet
+              appId={meetData.app_id}
+              channel={meetData.channel_name}
+              token={meetData.token}
+              uid={meetData.uid}
+              workspaceId={meetData.workspaceId}
+              userMap={meetData.user_map}
+              onLeave={() => setMeetData(null)}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

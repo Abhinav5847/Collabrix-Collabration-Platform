@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from "react"; // Added useRef to prevent double-execution
+import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux"; // Import useDispatch
 import { toast } from "react-toastify";
-import { api } from "../../services/api";
+import { googleLogin } from "../../store/slices/authSlice"; // Import your thunk
 
 const GoogleCallback = () => {
   const navigate = useNavigate();
-  const hasCalledAPI = useRef(false); // StrictMode often triggers useEffect twice
+  const dispatch = useDispatch();
+  const hasCalledAPI = useRef(false);
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code");
@@ -13,31 +15,31 @@ const GoogleCallback = () => {
     if (code && !hasCalledAPI.current) {
       hasCalledAPI.current = true;
       
-      api
-        .post("/accounts/google_login/", { code })
-        .then((res) => {
-          // IMPORTANT: Do NOT manually set localStorage for access/refresh tokens.
-          // Your backend 'set_auth_cookies' handles this via HttpOnly cookies.
-
+      // Dispatch the thunk instead of a raw API call
+      dispatch(googleLogin(code))
+        .unwrap() // Allows us to use .then()/.catch() on the result
+        .then((userData) => {
           toast.success("Logged in with Google!");
           
-          // Small delay to let the cookie settle and show the toast
-          setTimeout(() => {
-            navigate("/");
-          }, 500);
+          // Use your staff logic if applicable
+          if (userData.is_staff) {
+            navigate("/collabrix_admin", { replace: true });
+          } else {
+            navigate("/", { replace: true });
+          }
         })
         .catch((err) => {
-          console.error("Google Auth Error:", err.response?.data || err.message);
-          toast.error("Google login failed!");
+          console.error("Google Auth Error:", err);
+          toast.error(typeof err === 'string' ? err : "Google login failed!");
           navigate("/login");
         });
     }
-  }, [navigate]);
+  }, [dispatch, navigate]);
 
   return (
     <div className="d-flex flex-column justify-content-center align-items-center vh-100">
       <div className="spinner-border text-primary mb-3" role="status"></div>
-      <h3>Verifying Google Account...</h3>
+      <h3 className="fw-light">Verifying Google Account...</h3>
     </div>
   );
 };

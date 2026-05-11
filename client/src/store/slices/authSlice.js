@@ -10,10 +10,13 @@ export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
   async (code, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/accounts/google/callback/?code=${code}`);
+      // FIX: Move 'code' from the URL string to the data object (the second argument)
+      const response = await api.post('/accounts/google_login/', { code }); 
+      
       localStorage.setItem('isAuthenticated', 'true');
       return response.data;
     } catch (err) {
+      // Capture the specific error from the backend (e.g., "invalid_grant")
       return rejectWithValue(err.response?.data || "Google login failed");
     }
   }
