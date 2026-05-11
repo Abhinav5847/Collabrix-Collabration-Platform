@@ -277,7 +277,7 @@ import os
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.environ.get('AWS_REGION', 'ap-south-1')
-FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME', 'send_fcm_notification')
+FCM_LAMBDA_FUNCTION_NAME = os.environ.get('FCM_LAMBDA_FUNCTION_NAME','push-notification-processor')
 AWS_SQS_QUEUE_URL = os.environ.get('AWS_SQS_QUEUE_URL')
 AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_REGION_NAME = os.environ.get('AWS_REGION', 'ap-south-1')
