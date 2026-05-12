@@ -252,7 +252,8 @@ class UserProfileView(APIView):
             "username": user.username,
             "first_name": user.first_name, 
             "last_name": user.last_name,
-            "mfa_enabled": mfa_enabled,  # <--- CRITICAL: Add this line
+            "mfa_enabled": mfa_enabled,
+            "is_staff": user.is_staff,
         }, status=200)
 
 class EnableMfaView(APIView):

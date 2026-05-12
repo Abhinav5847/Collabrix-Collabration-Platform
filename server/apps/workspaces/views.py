@@ -431,6 +431,7 @@ class WorkspaceMeetTokenView(APIView):
             "app_id": settings.AGORA_APP_ID,
             "user_map": user_map  
         }) 
+    
 class MeetingUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -442,34 +443,40 @@ class MeetingUploadView(APIView):
         if not audio_file:
             return Response({"error": "No audio file provided"}, status=400)
 
+        # --- FIX STARTS HERE ---
+        # We must fetch the specific workspace instance first to access its members
+        workspace = get_object_or_404(WorkSpace, id=workspace_id, members__user=request.user)
+
+        # Use the lowercase 'workspace' instance variable, NOT the uppercase 'WorkSpace' class
+        member_names = [m.user.username for m in workspace.members.all()]
+        # --- FIX ENDS HERE ---
+
         # 2. Save the record
-        # Note: we pass workspace_id and host manually
         meeting = Meeting.objects.create(
-            workspace_id=workspace_id,
+            workspace=workspace, # Pass the object itself
             host=request.user,
             audio_file=audio_file,
             status='processing'
         )
 
         # 3. Notify FastAPI AI Service
-        # MATCH YOUR FASTAPI ROUTE: /meetings/process
         ai_url = "http://ai_service:8001/meetings/process" 
         
         payload = {
             "meeting_id": meeting.id,
-            "s3_url": meeting.audio_file.url, # The Mumbai S3 URL
+            "s3_url": meeting.audio_file.url,
+            "host_name": request.user.username,
+            "workspace_members": member_names
         }
         
         try:
-            # We use a tiny timeout because we don't want to wait for the transcript
+            # Fire and forget
             requests.post(ai_url, json=payload, timeout=0.1)
         except requests.exceptions.ReadTimeout:
-            # This is expected behavior for 'fire and forget'
             pass
         except Exception as e:
             print(f"Error connecting to AI Service: {e}")
 
-        # Return the created meeting data
         serializer = MeetingSerializer(meeting)
         return Response(serializer.data, status=201)
 

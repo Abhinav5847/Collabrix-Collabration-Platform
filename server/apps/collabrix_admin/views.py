@@ -4,52 +4,78 @@ from rest_framework import status, permissions
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Count
 
-# Import your other models (adjust paths based on your app names)
-from apps.workspaces.models import Workspace, Member
+from apps.workspaces.models import WorkSpace, WorkspaceMember, Meeting
 from apps.docs.models import Document
-from apps.meetings.models import Meeting
 
 User = get_user_model()
 
-class AdminDashboardStatsView(APIView):
+class AdminFullManagementView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
         try:
             now = timezone.now()
             last_24h = now - timedelta(hours=24)
-            last_7d = now - timedelta(days=7)
 
+            # --- FILTERED USER LOGIC ---
+            # 1. is_verified=True: Only fetch verified users
+            # 2. is_staff=False: Exclude admin/staff accounts
+            filtered_users = User.objects.filter(is_verified=True, is_staff=False)
+
+            # Management Data (Lists)
+            users_list = filtered_users.values(
+                'id', 'username', 'email', 'is_active', 'date_joined'
+            ).order_by('-date_joined')[:50]
+
+            workspaces_list = WorkSpace.objects.all().values(
+                'id', 'name', 'owner__email', 'created_at'
+            ).order_by('-created_at')
+
+            docs_list = Document.objects.filter(is_deleted=False).values(
+                'id', 'title', 'workspace__name', 'creator__email', 'created_at'
+            ).order_by('-created_at')
+
+            # Stats Data (Filtered to show only non-admin verified users where applicable)
             stats = {
-                "user_metrics": {
-                    "total_users": User.objects.count(),
-                    "new_users_24h": User.objects.filter(date_joined__gte=last_24h).count(),
-                    "active_staff": User.objects.filter(is_staff=True).count(),
+                "users": {
+                    "total": filtered_users.count(),
+                    "new_24h": filtered_users.filter(date_joined__gte=last_24h).count()
                 },
-                "workspace_analytics": {
-                    "total_workspaces": Workspace.objects.count(),
-                    "active_this_week": Workspace.objects.filter(updated_at__gte=last_7d).count(),
-                    "total_members": Member.objects.count(),
-                },
-                "document_metrics": {
-                    "total_documents": Document.objects.count(),
-                    "new_documents_24h": Document.objects.filter(created_at__gte=last_24h).count(),
-                    # If you track storage in S3:
-                    # "storage_used_mb": Document.objects.aggregate(Sum('file_size'))['file_size__sum'] or 0
-                },
-                "meeting_analytics": {
-                    "total_meetings_held": Meeting.objects.filter(status='completed').count(),
-                    "upcoming_meetings": Meeting.objects.filter(scheduled_at__gt=now).count(),
-                    "avg_duration": "42 mins", # Calculated logic here
-                },
-                "system_status": {
-                    "db_connection": "Healthy",
-                    "server_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "celery_status": "Active", # Example placeholder
-                }
+                "workspaces": {"total": WorkSpace.objects.count()},
+                "docs": {"total": Document.objects.count()},
+                "meetings": {"total": Meeting.objects.count()}
             }
-            return Response(stats, status=status.HTTP_200_OK)
+
+            return Response({
+                "stats": stats,
+                "management": {
+                    "users": list(users_list),
+                    "workspaces": list(workspaces_list),
+                    "documents": list(docs_list)
+                }
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class ToggleUserStatusView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, user_id):
+        try:
+            user_to_toggle = User.objects.get(id=user_id)
+            
+            # Prevent admin from deactivating themselves
+            if user_to_toggle == request.user:
+                return Response({"error": "You cannot deactivate yourself."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            user_to_toggle.is_active = not user_to_toggle.is_active
+            user_to_toggle.save()
+            
+            return Response({
+                "is_active": user_to_toggle.is_active,
+                "message": f"User {'activated' if user_to_toggle.is_active else 'deactivated'} successfully"
+            }, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
