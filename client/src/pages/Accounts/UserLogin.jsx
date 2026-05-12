@@ -155,23 +155,24 @@ const UserLogin = () => {
   setFieldErrors({});
 
   try {
-    // Step 1: Login and get the result immediately
+    // 1. Fire the login
     const resultAction = await dispatch(loginUser(form));
 
     if (loginUser.fulfilled.match(resultAction)) {
-      // The data returned from your Django LoginView
-      const userData = resultAction.payload; 
+      const userData = resultAction.payload;
+
+      // 2. IMMEDIATELY fire the profile fetch so the state is ready 
+      // by the time the navigation finishes.
+      const profileResult = await dispatch(fetchUserProfile()).unwrap();
 
       toast.success("Welcome back!");
 
-      try {
-        await sendFCMTokenToBackend();
-      } catch (err) {
-        console.error("FCM failed:", err);
-      }
+      // 3. Optional: Fire non-blocking tasks
+      sendFCMTokenToBackend().catch(err => console.error("FCM failed:", err));
 
-      // Step 2: Use the is_staff flag directly from the login response
-      if (userData?.is_staff) {
+      // 4. Navigate based on the profileResult we JUST fetched
+      // This ensures all Redux selectors (like useUser()) are 100% ready.
+      if (profileResult?.is_staff) {
         navigate("/collabrix_admin", { replace: true });
       } else {
         navigate("/", { replace: true });
@@ -180,17 +181,12 @@ const UserLogin = () => {
     } else {
       // Error handling logic...
       const errorData = resultAction.payload;
-      if (typeof errorData === "object" && errorData !== null) {
-        setFieldErrors(errorData);
-        const globalMsg = errorData.non_field_errors || errorData.detail || errorData.error;
-        if (globalMsg) toast.error(Array.isArray(globalMsg) ? globalMsg[0] : globalMsg);
-      } else {
-        toast.error("An unexpected server error occurred.");
-      }
+      setFieldErrors(errorData || {});
+      toast.error(errorData?.detail || "Login failed");
     }
   } catch (err) {
-    console.error("Login flow error:", err);
-    toast.error("An error occurred during login.");
+    console.error("Critical Login Error:", err);
+    toast.error("Failed to load user profile.");
   }
 };
 
