@@ -2,10 +2,24 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../services/api"; 
 import { aiApi } from "../../services/aiApi"; 
+import Swal from "sweetalert2"; // Import SweetAlert2
 import { 
   ArrowLeft, X, Sparkles, Send, 
-  Loader2, MessageSquare 
+  Loader2, MessageSquare, Trash2 
 } from "lucide-react";
+
+// Configure the Global Toast Mixin
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer)
+    toast.addEventListener('mouseleave', Swal.resumeTimer)
+  }
+});
 
 export default function DocumentDetail() {
   const { pk } = useParams();
@@ -14,6 +28,7 @@ export default function DocumentDetail() {
   
   const [doc, setDoc] = useState({ title: "", content: "", workspace: "" });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState([]);
@@ -22,25 +37,22 @@ export default function DocumentDetail() {
 
   // 1. LOAD DOCUMENT & RECENT HISTORY
   useEffect(() => {
-    // Load Document Content (Main Django Backend)
     api.get(`/documents/documents/${pk}/`)
       .then(res => setDoc(res.data))
-      .catch(err => console.error("Document Load Error", err));
+      .catch(err => {
+        console.error("Document Load Error", err);
+        Toast.fire({ icon: 'error', title: 'Failed to load document' });
+      });
 
-    // Load ONLY last 6 messages from AI History (FastAPI via Nginx /ai/ prefix)
     const loadRecentHistory = async () => {
       try {
         setHistoryLoading(true);
-        // Note: aiApi baseURL is http://127.0.0.1:4000/ai/
         const res = await aiApi.get(`history/${pk}`);
-        
         if (res.data.history) {
-          // Take only the last 6 messages for a cleaner "recent" UI
           const recentMessages = res.data.history.slice(-6); 
-          
           const formatted = recentMessages.map(m => ({
             role: m.role,
-            text: m.content // DynamoDB uses 'content'
+            text: m.content 
           }));
           setMessages(formatted);
         }
@@ -54,14 +66,14 @@ export default function DocumentDetail() {
     if (pk) loadRecentHistory();
   }, [pk]);
 
-  // 2. AUTO-SCROLL TO BOTTOM ON NEW MESSAGES
+  // 2. AUTO-SCROLL
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, chatLoading]);
 
-  // 3. AUTO-SAVE & INGEST TRIGGER
+  // 3. AUTO-SAVE
   useEffect(() => {
     if (!doc.title && !doc.content) return;
     const delayDebounceFn = setTimeout(() => { handleUpdate(); }, 1500);
@@ -76,11 +88,45 @@ export default function DocumentDetail() {
         content: doc.content,
         workspace: doc.workspace
       });
-      // Ingest is triggered by the main backend signal or Celery
     } catch (err) {
       console.error("Auto-save failed", err);
+      Toast.fire({ icon: 'error', title: 'Connection error: Auto-save failed' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // DELETE WITH SWEETALERT CONFIRMATION & TOAST
+  const handleDelete = async () => {
+    const result = await Swal.fire({
+      title: 'Delete Document?',
+      text: "This action cannot be undone.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Yes, delete it!',
+      background: '#fff',
+      customClass: {
+        popup: 'rounded-4 shadow-sm',
+        confirmButton: 'btn btn-danger px-4 rounded-pill',
+        cancelButton: 'btn btn-light px-4 rounded-pill'
+      }
+    });
+
+    if (result.isConfirmed) {
+      setDeleting(true);
+      try {
+        await api.delete(`/documents/documents/${pk}/`);
+        // Show success toast then navigate
+        await Toast.fire({ icon: 'success', title: 'Document deleted' });
+        navigate(-1);
+      } catch (err) {
+        console.error("Delete failed", err);
+        Toast.fire({ icon: 'error', title: 'Failed to delete document' });
+      } finally {
+        setDeleting(false);
+      }
     }
   };
 
@@ -97,16 +143,15 @@ export default function DocumentDetail() {
     setChatLoading(true);
 
     try {
-      // POSTs to http://127.0.0.1:4000/ai/chat
       const res = await aiApi.post("chat", {
         message: currentInput,
         doc_id: String(pk),
         workspace_id: String(doc.workspace)
       });
-      
       setMessages(prev => [...prev, { role: "ai", text: res.data.response }]);
     } catch (err) {
       console.error("Chat Error:", err);
+      Toast.fire({ icon: 'warning', title: 'AI service is unreachable' });
       setMessages(prev => [...prev, { 
         role: "ai", 
         text: "⚠️ Connection lost. AI Service might be restarting." 
@@ -132,12 +177,22 @@ export default function DocumentDetail() {
           />
         </div>
 
-        <div className="d-flex align-items-center gap-3">
+        <div className="d-flex align-items-center gap-2">
           {saving && (
-            <div className="d-flex align-items-center text-muted small animate-pulse">
+            <div className="d-flex align-items-center text-muted small animate-pulse me-2">
                <Loader2 size={14} className="animate-spin me-1" /> Saving...
             </div>
           )}
+
+          <button 
+            className="btn btn-sm btn-outline-danger d-flex align-items-center gap-2 px-3 rounded-pill"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+            <span className="fw-medium">Delete</span>
+          </button>
+
           <button 
             className={`btn btn-sm d-flex align-items-center gap-2 px-3 rounded-pill transition-all ${isChatOpen ? 'btn-primary' : 'btn-outline-primary'}`} 
             onClick={() => setIsChatOpen(!isChatOpen)}
@@ -150,7 +205,6 @@ export default function DocumentDetail() {
 
       {/* MAIN LAYOUT */}
       <main className="d-flex flex-grow-1 overflow-hidden bg-light">
-        {/* TEXT EDITOR AREA */}
         <div className="flex-grow-1 p-4 overflow-auto">
           <div className="mx-auto shadow-sm bg-white rounded-4 border" style={{ maxWidth: '850px', minHeight: '100%' }}>
             <textarea 
@@ -163,7 +217,6 @@ export default function DocumentDetail() {
           </div>
         </div>
 
-        {/* AI CHAT SIDEBAR */}
         {isChatOpen && (
           <aside className="border-start bg-white d-flex flex-column shadow-lg" style={{ width: '400px' }}>
             <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
@@ -176,7 +229,6 @@ export default function DocumentDetail() {
               </button>
             </div>
 
-            {/* MESSAGE LIST */}
             <div ref={scrollRef} className="flex-grow-1 p-3 overflow-auto d-flex flex-column gap-3 bg-light/30">
               {historyLoading ? (
                 <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
@@ -205,7 +257,6 @@ export default function DocumentDetail() {
               )}
             </div>
 
-            {/* INPUT AREA */}
             <div className="p-3 border-top bg-white">
               <form onSubmit={sendChatMessage} className="d-flex gap-2 bg-light p-1 rounded-pill border focus-within-ring">
                 <input 
@@ -228,7 +279,6 @@ export default function DocumentDetail() {
         )}
       </main>
 
-      {/* CUSTOM ANIMATIONS */}
       <style>{`
         .animate-spin { animation: spin 1s linear infinite; }
         .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
@@ -236,6 +286,7 @@ export default function DocumentDetail() {
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
         .focus-within-ring:focus-within { border-color: var(--bs-primary) !important; box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15); }
         .w-fit { width: fit-content; }
+        .swal2-toast { padding: 0.5rem 1rem !important; }
       `}</style>
     </div>
   );

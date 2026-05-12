@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { api } from '../../services/api';
 import { 
     Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles, X
 } from 'lucide-react';
@@ -249,17 +250,20 @@ export default function Dashboard() {
   }, [meetData, meetModalWs]);
 
   const handleStartMeet = async (workspaceId) => {
-    setJoiningId(workspaceId);
-    try {
-      const response = await axios.get(`/api/workspaces/${workspaceId}/meet-token/`);
-      setMeetData({ ...response.data, workspaceId });
-    } catch (err) {
-      console.error("Meeting failed:", err);
-      alert("Failed to initialize meeting.");
-    } finally {
-      setJoiningId(null);
-    }
-  };
+  setJoiningId(workspaceId);
+  try {
+    // CHANGE: Use 'api' instead of 'axios'
+    // ALSO: Check if your backend expects /api/ or not. 
+    // If your api service has baseURL: .../api/, remove '/api' from the string below.
+    const response = await api.get(`workspaces/${workspaceId}/meet-token/`);
+    setMeetData({ ...response.data, workspaceId });
+  } catch (err) {
+    console.error("Meeting failed:", err);
+    alert("Failed to initialize meeting.");
+  } finally {
+    setJoiningId(null);
+  }
+};
 
   if (loading && workspaces.length === 0) return (
     <div style={{

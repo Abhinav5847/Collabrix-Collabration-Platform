@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import useAgora from '../../services/useAgora';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, Disc } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 const RemoteVideoPlayer = ({ user, displayName }) => {
   const videoRef = useRef(null);
@@ -29,10 +29,11 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
   const { join, leave, localVideoTrack, localAudioTrack, remoteUsers } = useAgora();
   const localRef = useRef(null);
 
-  // --- Refs for non-reactive data storage ---
+  // --- Recording Refs ---
   const mediaRecorder = useRef(null);
   const audioChunks = useRef([]);
-  const workspaceIdRef = useRef(workspaceId); 
+  const audioContextRef = useRef(null);
+  const audioDestRef = useRef(null);
 
   // --- UI States ---
   const [isMuted, setIsMuted] = useState(false);
@@ -40,55 +41,69 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Keep the Ref in sync with the prop if it updates
-  useEffect(() => {
-    if (workspaceId) {
-      workspaceIdRef.current = workspaceId;
-    }
-  }, [workspaceId]);
-
   // Initial Join
   useEffect(() => {
     const numericUid = Number(uid);
     if (appId && channel && token) {
       join(appId, channel, token, numericUid);
     }
-    return () => leave();
+    return () => {
+      leave();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
   }, [appId, channel, token, uid]);
 
-  // Handle Local Video Playback
+  // Local Video Playback
   useEffect(() => {
     if (localVideoTrack && localRef.current) {
       localVideoTrack.play(localRef.current);
     }
   }, [localVideoTrack]);
 
-  // Auto-play remote audio tracks
+  // Handle Audio for remote users (including late joiners)
   useEffect(() => {
     remoteUsers.forEach((user) => {
-      if (user.audioTrack) user.audioTrack.play();
+      if (user.audioTrack) {
+        user.audioTrack.play();
+        
+        // If we are currently recording, we must inject this new user into the mixer
+        if (isRecording && audioContextRef.current && audioDestRef.current) {
+          try {
+            const remoteStream = new MediaStream([user.audioTrack.getMediaStreamTrack()]);
+            const source = audioContextRef.current.createMediaStreamSource(remoteStream);
+            source.connect(audioDestRef.current);
+          } catch (e) {
+            console.error("Error adding late-joiner to recording mixer:", e);
+          }
+        }
+      }
     });
-  }, [remoteUsers]);
+  }, [remoteUsers, isRecording]);
 
-  // --- Audio Mixing & Recording Logic ---
+  // --- Recording Logic ---
   const startRecording = async () => {
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioContext.state === 'suspended') await audioContext.resume();
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      if (ctx.state === 'suspended') await ctx.resume();
+      
+      const dest = ctx.createMediaStreamDestination();
+      audioContextRef.current = ctx;
+      audioDestRef.current = dest;
 
-      const dest = audioContext.createMediaStreamDestination();
-
-      // Connect Local Mic
+      // Mix Local Mic
       if (localAudioTrack) {
         const localStream = new MediaStream([localAudioTrack.getMediaStreamTrack()]);
-        audioContext.createMediaStreamSource(localStream).connect(dest);
+        ctx.createMediaStreamSource(localStream).connect(dest);
       }
 
-      // Connect All Remote Mics
+      // Mix Existing Remote Mics
       remoteUsers.forEach((user) => {
         if (user.audioTrack) {
           const remoteStream = new MediaStream([user.audioTrack.getMediaStreamTrack()]);
-          audioContext.createMediaStreamSource(remoteStream).connect(dest);
+          ctx.createMediaStreamSource(remoteStream).connect(dest);
         }
       });
 
@@ -96,73 +111,74 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
       audioChunks.current = [];
 
       mediaRecorder.current.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunks.current.push(e.data);
+        if (e.data && e.data.size > 0) {
+          audioChunks.current.push(e.data);
+        }
       };
 
-      mediaRecorder.current.start();
+      mediaRecorder.current.start(1000); // Collect data in 1s chunks for stability
       setIsRecording(true);
-      console.log("Mixed Audio Recording Started...");
+      console.log("Recording started...");
     } catch (err) {
       console.error("Recording failed to start:", err);
     }
   };
 
   const handleFinalUpload = async () => {
-    const currentId = workspaceIdRef.current || workspaceId;
-
-    if (!currentId || currentId === "undefined") {
-      console.error("CRITICAL: workspaceId is undefined at upload time!");
+    if (!workspaceId || audioChunks.current.length === 0) {
+      console.warn("Upload skipped: No data or workspace ID.");
       return;
     }
 
-    if (audioChunks.current.length === 0) {
-      console.warn("No audio chunks captured. Skipping upload.");
-      return;
-    }
-    
     const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-    const formData = new FormData();
     
-    // ADD 'meeting.webm' AS THE THIRD ARGUMENT BELOW
-    formData.append('audio', audioBlob, 'meeting.webm'); 
-    formData.append('channel', channel);
+    // Minimal size check to prevent empty uploads
+    if (audioBlob.size < 500) return; 
 
-    // const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-    // const formData = new FormData();
-    // formData.append('audio', audioBlob);
-    // formData.append('channel', channel);
+    const formData = new FormData();
+    formData.append('audio', audioBlob, `meeting_${workspaceId}_${Date.now()}.webm`);
 
     try {
-      console.log(`Uploading meeting data to workspace ${currentId}...`);
-      await axios.post(`/api/workspaces/${currentId}/process-meeting/`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      await api.post(`workspaces/${workspaceId}/process-meeting/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      console.log("Meeting successfully sent for processing.");
-    } catch (error) {
-      console.error("Upload error:", error.response?.data || error.message);
+      console.log("Meeting uploaded successfully.");
+    } catch (err) {
+      console.error("Upload failed:", err.response?.data || err.message);
+      throw err; 
     }
   };
 
   const stopRecordingAndLeave = async () => {
     setIsSaving(true);
-
-    if (mediaRecorder.current && isRecording) {
-      // Create a promise to ensure the 'onstop' fires and finishes before we call onLeave()
-      await new Promise((resolve) => {
-        mediaRecorder.current.onstop = async () => {
-          await handleFinalUpload();
-          resolve();
-        };
-        mediaRecorder.current.stop();
-      });
-      setIsRecording(false);
-    }
     
-    setIsSaving(false);
-    onLeave(); // Close the modal in Dashboard.jsx
+    try {
+      if (mediaRecorder.current && isRecording) {
+        await new Promise((resolve) => {
+          mediaRecorder.current.onstop = () => {
+            // Short delay to ensure final buffer chunk is pushed to audioChunks
+            setTimeout(async () => {
+              try {
+                await handleFinalUpload();
+                resolve();
+              } catch (e) {
+                resolve(); // Still leave even if upload fails
+              }
+            }, 600);
+          };
+          mediaRecorder.current.stop();
+        });
+        setIsRecording(false);
+      }
+      onLeave();
+    } catch (err) {
+      console.error("Error during session end:", err);
+      onLeave(); 
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // --- Toggle Controls ---
   const toggleAudio = async () => {
     if (localAudioTrack) {
       await localAudioTrack.setEnabled(isMuted);
@@ -179,9 +195,9 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
 
   return (
     <div className="d-flex flex-column h-100 bg-dark text-white rounded-4 shadow-lg overflow-hidden">
-      {/* Video Grid */}
       <div className="flex-grow-1 p-4 overflow-auto">
         <div className="row g-3 justify-content-center">
+          {/* Local User */}
           <div className="col-12 col-md-6">
             <div className="ratio ratio-16x9 bg-black rounded-3 overflow-hidden border border-primary border-opacity-50 shadow-sm position-relative">
               {isVideoOff && (
@@ -200,6 +216,7 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
             </div>
           </div>
 
+          {/* Remote Users */}
           {remoteUsers.map((user) => (
             <div key={user.uid} className="col-12 col-md-6">
               <RemoteVideoPlayer 

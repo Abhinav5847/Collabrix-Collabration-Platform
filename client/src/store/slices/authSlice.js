@@ -2,29 +2,21 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
 
 // --- Thunks ---
-
-/**
- * Handles Google OAuth callback logic.
- */
 export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
   async (code, { rejectWithValue }) => {
     try {
-      // FIX: Move 'code' from the URL string to the data object (the second argument)
       const response = await api.post('/accounts/google_login/', { code }); 
       
       localStorage.setItem('isAuthenticated', 'true');
       return response.data;
     } catch (err) {
-      // Capture the specific error from the backend (e.g., "invalid_grant")
+      
       return rejectWithValue(err.response?.data || "Google login failed");
     }
   }
 );
 
-/**
- * Handles standard email/password login.
- */
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (userData, { rejectWithValue }) => {
@@ -38,9 +30,6 @@ export const loginUser = createAsyncThunk(
   }
 );
 
-/**
- * Registers a new user.
- */
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
@@ -77,7 +66,11 @@ export const fetchUserProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('accounts/user/profile/');
-      return response.data; // Expecting { ..., mfa_enabled: boolean }
+
+      console.log("PROFILE RESPONSE:", response.data);
+
+      return response.data;
+
     } catch (err) {
       localStorage.removeItem('isAuthenticated');
       return rejectWithValue(err.response?.data || "Failed to load user profile");

@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { ToastContainer, toast } from "react-toastify";
-import { loginUser, clearError } from "../../store/slices/authSlice";
+import { loginUser, clearError,fetchUserProfile } from "../../store/slices/authSlice";
 import sendFCMTokenToBackend from "../../utils/fcm";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -151,29 +151,48 @@ const UserLogin = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFieldErrors({});
+  e.preventDefault();
+  setFieldErrors({});
+
+  try {
+    // Step 1: Login and get the result immediately
     const resultAction = await dispatch(loginUser(form));
+
     if (loginUser.fulfilled.match(resultAction)) {
+      // The data returned from your Django LoginView
+      const userData = resultAction.payload; 
+
       toast.success("Welcome back!");
-      const userData = resultAction.payload.user || resultAction.payload;
-      try { await sendFCMTokenToBackend(); } catch (err) { console.error("FCM failed:", err); }
-      if (userData.is_staff) {
+
+      try {
+        await sendFCMTokenToBackend();
+      } catch (err) {
+        console.error("FCM failed:", err);
+      }
+
+      // Step 2: Use the is_staff flag directly from the login response
+      if (userData?.is_staff) {
         navigate("/collabrix_admin", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
+
     } else {
+      // Error handling logic...
       const errorData = resultAction.payload;
       if (typeof errorData === "object" && errorData !== null) {
+        setFieldErrors(errorData);
         const globalMsg = errorData.non_field_errors || errorData.detail || errorData.error;
         if (globalMsg) toast.error(Array.isArray(globalMsg) ? globalMsg[0] : globalMsg);
-        setFieldErrors(errorData);
       } else {
         toast.error("An unexpected server error occurred.");
       }
     }
-  };
+  } catch (err) {
+    console.error("Login flow error:", err);
+    toast.error("An error occurred during login.");
+  }
+};
 
   const handleGoogleLogin = () => {
     const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
