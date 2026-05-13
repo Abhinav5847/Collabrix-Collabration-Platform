@@ -35,7 +35,7 @@ class WorkspaceListCreateView(APIView):
     def get(self, request):
         try:
             # Filters workspaces where the current user is a member
-            workspaces = WorkSpace.objects.filter(members__user=request.user)
+            workspaces = WorkSpace.objects.filter(members__user=request.user,is_active=True)
             serializer = self.serializer_class(workspaces, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:

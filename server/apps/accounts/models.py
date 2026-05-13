@@ -14,6 +14,7 @@ class User(AbstractUser):
     fcm_token = models.TextField(null=True, blank=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
+    is_deleted = models.BooleanField(default=False)
 
     def __str__(self):
         return self.email

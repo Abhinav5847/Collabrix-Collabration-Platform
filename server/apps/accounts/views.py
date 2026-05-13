@@ -78,9 +78,10 @@ class RegisterView(APIView):
     serializer_class = RegisterSerializer
 
     def post(self, request):
-   
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         user = serializer.save()
         
         try:
@@ -88,7 +89,6 @@ class RegisterView(APIView):
             if not send_otp_email(user.email, otp.code):
                 raise Exception("Failed to send OTP email")
         except Exception as e:
-            # If user is created but email fails, we return a 500
             return Response({"detail": f"OTP not sent: {str(e)}"}, status=500)
             
         return Response({"message": "Registration completed. Check your email for OTP."}, status=201)
@@ -99,9 +99,11 @@ class VerifyOTPView(APIView):
     serializer_class = VerifyOTPSerializer
 
     def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         try:
-            serializer = self.serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
             email = serializer.validated_data["email"]
             otp = serializer.validated_data["otp"]
             user = User.objects.get(email=email)
@@ -129,7 +131,9 @@ class ResendOtpView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         email = serializer.validated_data.get("email")
         try:
             user = User.objects.get(email=email)
@@ -150,14 +154,19 @@ class LoginView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = authenticate(request, email=serializer.validated_data["email"], password=serializer.validated_data["password"])
-
-        if not user: return Response({"error": "Invalid credentials"}, status=401)
-        if not user.is_verified: return Response({"error": "Email not verified"}, status=403)
+        if not serializer.is_valid():
+            # This will catch the "Banned", "Deleted", or "Not Verified" 
+            # errors raised in your LoginSerializer.validate()
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        user = serializer.validated_data['user']
 
         refresh = RefreshToken.for_user(user)
-        response = Response({"message": "Login successful", "user_id": user.id,"is_staff": user.is_staff}, status=200)
+        response = Response({
+            "message": "Login successful", 
+            "user_id": user.id,
+            "is_staff": user.is_staff
+        }, status=200)
         return set_auth_cookies(response, refresh, user.id)
 
 class GoogleAuthView(APIView):
@@ -167,7 +176,9 @@ class GoogleAuthView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         code = serializer.validated_data.get("code")
         
         try:
@@ -190,7 +201,6 @@ class GoogleAuthView(APIView):
             user = User.objects.filter(email=email).first()
 
             if not user:
-
                 user = User.objects.create_user(
                     email=email,
                     username=email, 
@@ -238,7 +248,6 @@ class UserProfileView(APIView):
 
     def get(self, request):
         user = request.user
-        # Check if MFA is enabled for this user
         mfa_enabled = False
         try:
             mfa = UserMFA.objects.get(user=user)
@@ -278,7 +287,9 @@ class VerifyMFAView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         try:
             mfa = UserMFA.objects.get(user=request.user)
             if pyotp.TOTP(mfa.secret).verify(serializer.validated_data["code"]):
@@ -313,7 +324,9 @@ class ForgotPassView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         try:
             user = User.objects.get(email=serializer.validated_data["email"])
             uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -323,7 +336,6 @@ class ForgotPassView(APIView):
         except User.DoesNotExist: pass
         return Response({"message": "If the email exists, a reset link has been sent"}, status=200)
 
-
 class ResetPassView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -331,18 +343,23 @@ class ResetPassView(APIView):
 
     def post(self, request, uidb64, token):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         try:
             uid = urlsafe_base64_decode(uidb64).decode()
             user = User.objects.get(pk=uid)
             if not default_token_generator.check_token(user, token):
                 return Response({"error": "Invalid token"}, status=400)
+            
+            # Additional validation for password strength
             validate_password(serializer.validated_data["password"], user)
+            
             user.set_password(serializer.validated_data["password"])
             user.save()
             return Response({"message": "Password reset successful"}, status=200)
-        except Exception:
-            return Response({"error": "Invalid request"}, status=400)
+        except Exception as e:
+            return Response({"error": str(e) if settings.DEBUG else "Invalid request"}, status=400)
 
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
@@ -369,4 +386,4 @@ class AllUsersListView(APIView):
     def get(self, request):
         users = User.objects.filter(is_verified=True).exclude(id=request.user.id)
         serializer = UserProfileSerializer(users, many=True)
-        return Response(serializer.data, status=200)    
+        return Response(serializer.data, status=200)

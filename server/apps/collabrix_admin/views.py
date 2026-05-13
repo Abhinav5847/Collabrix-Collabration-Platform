@@ -4,8 +4,10 @@ from rest_framework import status, permissions
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
+from django.shortcuts import get_object_or_404
 
 from apps.workspaces.models import WorkSpace, WorkspaceMember, Meeting
+from apps.workspaces.serializers import WorkspaceSerializer
 from apps.docs.models import Document
 
 User = get_user_model()
@@ -18,25 +20,21 @@ class AdminFullManagementView(APIView):
             now = timezone.now()
             last_24h = now - timedelta(hours=24)
 
-            # --- FILTERED USER LOGIC ---
-            # 1. is_verified=True: Only fetch verified users
-            # 2. is_staff=False: Exclude admin/staff accounts
             filtered_users = User.objects.filter(is_verified=True, is_staff=False)
 
-            # Management Data (Lists)
             users_list = filtered_users.values(
                 'id', 'username', 'email', 'is_active', 'date_joined'
             ).order_by('-date_joined')[:50]
 
             workspaces_list = WorkSpace.objects.all().values(
-                'id', 'name', 'owner__email', 'created_at'
+                'id', 'name', 'owner__email', 'created_at','is_active'
             ).order_by('-created_at')
 
             docs_list = Document.objects.filter(is_deleted=False).values(
                 'id', 'title', 'workspace__name', 'creator__email', 'created_at'
             ).order_by('-created_at')
 
-            # Stats Data (Filtered to show only non-admin verified users where applicable)
+
             stats = {
                 "users": {
                     "total": filtered_users.count(),
@@ -58,6 +56,44 @@ class AdminFullManagementView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+class AdminWorkspaceDetailView(APIView):
+    """
+    Admin-only endpoint to View, Edit, and Soft-Delete any workspace.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, workspace_id):
+        # Admin can view any workspace, regardless of membership
+        workspace = get_object_or_404(WorkSpace, id=workspace_id)
+        serializer = WorkspaceSerializer(workspace)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, workspace_id):
+        # Admin can edit workspace details (like name)
+        workspace = get_object_or_404(WorkSpace, id=workspace_id)
+        serializer = WorkspaceSerializer(workspace, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, workspace_id):
+    # Soft delete toggle: Switch is_active status
+     workspace = get_object_or_404(WorkSpace, id=workspace_id)
+    
+    # Flip the status: if True becomes False, if False becomes True
+     workspace.is_active = not workspace.is_active
+     workspace.save()
+    
+     action = "archived" if not workspace.is_active else "restored"
+    
+     return Response({
+        "message": f"Workspace {action} successfully.",
+        "id": workspace_id,
+        "is_active": workspace.is_active
+     }, status=status.HTTP_200_OK)      
+        
 
 class ToggleUserStatusView(APIView):
     permission_classes = [permissions.IsAdminUser]
@@ -66,7 +102,6 @@ class ToggleUserStatusView(APIView):
         try:
             user_to_toggle = User.objects.get(id=user_id)
             
-            # Prevent admin from deactivating themselves
             if user_to_toggle == request.user:
                 return Response({"error": "You cannot deactivate yourself."}, status=status.HTTP_400_BAD_REQUEST)
             

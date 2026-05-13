@@ -1,7 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate,get_user_model
 from .models import User, UserMFA
 
 from .models import User
@@ -37,7 +37,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.pop("confirm_password")
         return User.objects.create_user(**validated_data)
 
-
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
@@ -46,16 +45,26 @@ class LoginSerializer(serializers.Serializer):
         email = data.get("email")
         password = data.get("password")
 
-        # Standard DRF handles nulls automatically, but we authenticate here
         user = authenticate(email=email, password=password)
         
         if not user:
-            # Global Error: Non-field specific (for a Toast Notification)
+
+            user_exists = get_user_model().objects.filter(email=email).first()
+            if user_exists:
+                if user_exists.is_deleted:
+                    raise serializers.ValidationError("This account has been deleted.")
+                if not user_exists.is_active:
+                    raise serializers.ValidationError("Your account has been suspended by an administrator.")
+            
             raise serializers.ValidationError("Invalid email or password.")
         
         if not user.is_verified:
-            # Field Error: Targets the email field specifically
             raise serializers.ValidationError({"email": "Your account is not verified."})
+
+        # Final safety check for active status (Django's authenticate() returns None 
+        # for inactive users by default anyway, but this is explicit)
+        if not user.is_active:
+            raise serializers.ValidationError("Your account is currently inactive.")
 
         data["user"] = user
         return data
