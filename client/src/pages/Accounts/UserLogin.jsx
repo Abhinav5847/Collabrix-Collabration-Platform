@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { ToastContainer, toast } from "react-toastify";
-import { loginUser, clearError,fetchUserProfile } from "../../store/slices/authSlice";
+import { toast } from "react-toastify";
+import { loginUser, clearError, fetchUserProfile } from "../../store/slices/authSlice";
 import sendFCMTokenToBackend from "../../utils/fcm";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -155,38 +155,40 @@ const UserLogin = () => {
   setFieldErrors({});
 
   try {
-    // 1. Fire the login
     const resultAction = await dispatch(loginUser(form));
 
     if (loginUser.fulfilled.match(resultAction)) {
-      const userData = resultAction.payload;
-
-      // 2. IMMEDIATELY fire the profile fetch so the state is ready 
-      // by the time the navigation finishes.
       const profileResult = await dispatch(fetchUserProfile()).unwrap();
+      
+      // Toast triggered here
+      toast.success("Welcome back!"); 
 
-      toast.success("Welcome back!");
-
-      // 3. Optional: Fire non-blocking tasks
       sendFCMTokenToBackend().catch(err => console.error("FCM failed:", err));
 
-      // 4. Navigate based on the profileResult we JUST fetched
-      // This ensures all Redux selectors (like useUser()) are 100% ready.
       if (profileResult?.is_staff) {
         navigate("/collabrix_admin", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
-
-    } else {
-      // Error handling logic...
-      const errorData = resultAction.payload;
-      setFieldErrors(errorData || {});
-      toast.error(errorData?.detail || "Login failed");
+      return; 
     }
+
+    const errorData = resultAction.payload;
+    if (errorData) {
+      setFieldErrors(errorData);
+      if (errorData.detail) {
+        toast.error(errorData.detail);
+      } 
+      else if (errorData.non_field_errors) {
+        toast.error(errorData.non_field_errors[0]);
+      } 
+    } else {
+      toast.error("Server error. Please try again later.");
+    }
+
   } catch (err) {
     console.error("Critical Login Error:", err);
-    toast.error("Failed to load user profile.");
+    toast.error("Failed to connect to the server.");
   }
 };
 
@@ -210,7 +212,6 @@ const UserLogin = () => {
       <div style={S.bgOrb1} />
       <div style={S.bgOrb2} />
 
-      {/* Left — logo + welcome only */}
       <div style={S.brand}>
         <div style={S.brandLogo}>
           <div style={S.logoIcon}><LogoMark /></div>
@@ -220,7 +221,6 @@ const UserLogin = () => {
         <p style={S.brandSub}>Good to see you again.</p>
       </div>
 
-      {/* Right — form */}
       <div style={S.formPane}>
         <div style={S.card}>
           <div style={S.cardHeader}>
@@ -310,8 +310,6 @@ const UserLogin = () => {
           </p>
         </div>
       </div>
-
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar toastStyle={{ borderRadius: 10, fontSize: 14 }} />
     </div>
   );
 };

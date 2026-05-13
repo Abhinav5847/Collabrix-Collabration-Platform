@@ -29,19 +29,16 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
   const { join, leave, localVideoTrack, localAudioTrack, remoteUsers } = useAgora();
   const localRef = useRef(null);
 
-  // --- Recording Refs ---
   const mediaRecorder = useRef(null);
   const audioChunks = useRef([]);
   const audioContextRef = useRef(null);
   const audioDestRef = useRef(null);
 
-  // --- UI States ---
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initial Join
   useEffect(() => {
     const numericUid = Number(uid);
     if (appId && channel && token) {
@@ -55,20 +52,17 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
     };
   }, [appId, channel, token, uid]);
 
-  // Local Video Playback
   useEffect(() => {
     if (localVideoTrack && localRef.current) {
       localVideoTrack.play(localRef.current);
     }
   }, [localVideoTrack]);
 
-  // Handle Audio for remote users (including late joiners)
   useEffect(() => {
     remoteUsers.forEach((user) => {
       if (user.audioTrack) {
         user.audioTrack.play();
         
-        // If we are currently recording, we must inject this new user into the mixer
         if (isRecording && audioContextRef.current && audioDestRef.current) {
           try {
             const remoteStream = new MediaStream([user.audioTrack.getMediaStreamTrack()]);
@@ -82,7 +76,6 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
     });
   }, [remoteUsers, isRecording]);
 
-  // --- Recording Logic ---
   const startRecording = async () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -93,13 +86,11 @@ const VideoMeet = ({ appId, channel, token, uid, workspaceId, userMap = {}, onLe
       audioContextRef.current = ctx;
       audioDestRef.current = dest;
 
-      // Mix Local Mic
       if (localAudioTrack) {
         const localStream = new MediaStream([localAudioTrack.getMediaStreamTrack()]);
         ctx.createMediaStreamSource(localStream).connect(dest);
       }
 
-      // Mix Existing Remote Mics
       remoteUsers.forEach((user) => {
         if (user.audioTrack) {
           const remoteStream = new MediaStream([user.audioTrack.getMediaStreamTrack()]);

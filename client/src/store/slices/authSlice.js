@@ -42,9 +42,7 @@ export const registerUser = createAsyncThunk(
   }
 );
 
-/**
- * Verifies Email OTP.
- */
+
 export const verifyOtp = createAsyncThunk(
   'auth/verifyOtp',
   async ({ email, otp }, { rejectWithValue }) => {
