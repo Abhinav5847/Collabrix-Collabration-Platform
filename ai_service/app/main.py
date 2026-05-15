@@ -7,6 +7,7 @@ import os
 from app.api.chat import router as rag_router
 from app.vector.qdrant import init_collection
 from app.core.limiter import limiter
+from app.api.meetings import router as meeting_router
 
 # Agent Imports
 from app.api.agent_chat import router as agent_router
@@ -22,9 +23,9 @@ async def lifespan(app: FastAPI):
     # 1. RAG: Initialize Qdrant
     try:
         init_collection()
-        print("✅ Qdrant initialized.")
+        print("Qdrant initialized.")
     except Exception as e:
-        print(f"⚠️ Qdrant failed: {e}")
+        print(f"Qdrant failed: {e}")
 
     # 2. DynamoDB Setup
     try:
@@ -44,14 +45,14 @@ async def lifespan(app: FastAPI):
                 ],
                 ProvisionedThroughput={'ReadCapacityUnits': 5, 'WriteCapacityUnits': 5}
             )
-            print("✅ RAG Table verified.")
+            print("RAG Table verified.")
         except client.exceptions.ResourceInUseException:
             pass
             
-        print("ℹ️ Note: Agent Table is managed manually in AWS Console.")
+        print("Note: Agent Table is managed manually in AWS Console.")
 
     except Exception as e:
-        print(f"❌ DynamoDB Setup Error: {e}")
+        print(f"DynamoDB Setup Error: {e}")
     
     yield 
     print("Stopping Service...")
@@ -76,6 +77,7 @@ app.add_middleware(
 # --- ROUTES ---
 app.include_router(rag_router, prefix="", tags=["RAG"])
 app.include_router(agent_router, prefix="/agent", tags=["Agent"])
+app.include_router(meeting_router, prefix="/meetings", tags=["Meetings"])
 
 @app.get("/health")
 def health():

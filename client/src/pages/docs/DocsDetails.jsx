@@ -104,7 +104,7 @@ export default function DocumentDetail() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      await api.post(`/documents/documents/${pk}/export_pdf/`);
+      await api.post(`/documents/${pk}/export-pdf/`);
       Toast.fire({ icon: 'success', title: 'PDF Generation Started' });
       // Polling or waiting for update could go here
     } catch (err) {

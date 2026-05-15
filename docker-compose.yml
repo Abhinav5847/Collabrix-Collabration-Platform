@@ -52,7 +52,8 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333 # Internal container port remains 6333
       - DYNAMODB_URL=http://dynamodb-local:8000
-      - AWS_REGION=us-east-1
+      # - AWS_REGION=us-east-1
+      - AWS_REGION=ap-south-1
       - AWS_ACCESS_KEY_ID=local
       - AWS_SECRET_ACCESS_KEY=local
     depends_on:
@@ -122,7 +123,7 @@ services:
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
-    depends_on: [db, redis, backend]
+    depends_on: [db, redis, backend]   
 
 volumes:
   postgres_data:
