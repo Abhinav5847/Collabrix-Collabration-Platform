@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting Collabrix AI Service...")
+    print("Starting Collabrix AI Service...")
     
     # 1. RAG: Initialize Qdrant
     try:

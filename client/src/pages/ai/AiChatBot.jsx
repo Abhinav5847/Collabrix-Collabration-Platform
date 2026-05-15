@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { aiApi } from "../../services/aiApi"; 
 
-const CollabrixChat = ({ docId, workspaceId }) => {
+// FIX: Added userId prop to identify who is chatting
+const CollabrixChat = ({ docId, workspaceId, userId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -11,13 +12,17 @@ const CollabrixChat = ({ docId, workspaceId }) => {
   // 1. Sync with the new backend route: /ai/history/{doc_id}
   useEffect(() => {
     const loadSavedHistory = async () => {
-      if (!docId) return;
+      // FIX: Ensure we have both docId and userId before fetching history
+      if (!docId || !userId) return;
       try {
         setHistoryLoading(true);
-        // Note: baseURL is already /ai/, so we just call 'history/{id}'
-        const res = await aiApi.get(`history/${docId}`);
+        
+        // FIX: Pass user_id as a query parameter so backend gets the private history
+        const res = await aiApi.get(`history/${docId}`, {
+            params: { user_id: userId } 
+        });
+
         if (res.data?.history) {
-          // Slice to the last 10 messages to keep the UI light
           const recent = res.data.history.slice(-10).map(item => ({
             role: item.role,
             content: item.content
@@ -31,7 +36,7 @@ const CollabrixChat = ({ docId, workspaceId }) => {
       }
     };
     loadSavedHistory();
-  }, [docId]);
+  }, [docId, userId]); // Reload if user or doc changes
 
   // 2. Optimized Auto-scroll
   useEffect(() => {
@@ -51,11 +56,12 @@ const CollabrixChat = ({ docId, workspaceId }) => {
     setIsLoading(true);
 
     try {
-      // Calling /ai/chat
+      // FIX: Include user_id in the POST body
       const res = await aiApi.post("chat", {
         message: userMsg,
         workspace_id: String(workspaceId),
         doc_id: String(docId),
+        user_id: String(userId) // CRITICAL: Tells backend whose bucket to use
       });
 
       setMessages((prev) => [
@@ -119,7 +125,7 @@ const CollabrixChat = ({ docId, workspaceId }) => {
 
         {isLoading && (
           <div style={{ display: "flex", gap: "4px", padding: "8px" }}>
-             <span className="ai-typing" style={{ color: "#007bff", fontSize: "11px", fontWeight: "bold" }}>AI is analyzing...</span>
+              <span className="ai-typing" style={{ color: "#007bff", fontSize: "11px", fontWeight: "bold" }}>AI is analyzing...</span>
           </div>
         )}
       </div>

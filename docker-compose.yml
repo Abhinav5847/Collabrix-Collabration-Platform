@@ -51,14 +51,16 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333 # Internal container port remains 6333
-      - DYNAMODB_URL=http://dynamodb-local:8000
+      # - DYNAMODB_URL=http://dynamodb-local:8000
       # - AWS_REGION=us-east-1
       - AWS_REGION=ap-south-1
-      - AWS_ACCESS_KEY_ID=local
-      - AWS_SECRET_ACCESS_KEY=local
+      # - AWS_ACCESS_KEY_ID=local
+      # - AWS_SECRET_ACCESS_KEY=local
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     depends_on:
       - qdrant
-      - dynamodb-local
+      # - dynamodb-local
 
   qdrant:
     image: qdrant/qdrant:latest

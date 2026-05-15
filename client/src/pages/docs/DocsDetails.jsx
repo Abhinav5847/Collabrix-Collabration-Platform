@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux"; // Import useSelector
 import { api } from "../../services/api"; 
 import { aiApi } from "../../services/aiApi"; 
 import Swal from "sweetalert2"; 
@@ -23,7 +24,9 @@ export default function DocumentDetail() {
   const socketRef = useRef(null);
   const isRemoteUpdate = useRef(false);
   
-  const currentUserId = JSON.parse(localStorage.getItem('user'))?.id;
+  // FIX: Get User ID from Redux Auth Slice instead of localStorage
+  const user = useSelector((state) => state.auth.user);
+  const currentUserId = user?.id || user?.user_id || user?.pk;
 
   const [doc, setDoc] = useState({ title: "", content: "", workspace: "", is_exporting: false, pdf_file: null });
   const [saving, setSaving] = useState(false);
@@ -34,18 +37,51 @@ export default function DocumentDetail() {
   const [messages, setMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
 
-  // 1. INITIAL LOAD
+  // 1. INITIAL LOAD (Document Metadata)
   useEffect(() => {
     const fetchDoc = () => {
       api.get(`/documents/documents/${pk}/`)
         .then(res => setDoc(res.data))
-        .catch(() => Toast.fire({ icon: 'error', title: 'Failed to load' }));
+        .catch(() => Toast.fire({ icon: 'error', title: 'Failed to load document' }));
     };
     fetchDoc();
   }, [pk]);
 
-  // 2. WEBSOCKET SYNC
+  // 2. ISOLATED HISTORY LOAD
   useEffect(() => {
+    const loadSavedHistory = async () => {
+      // If Redux hasn't loaded the user yet, we wait
+      if (!pk || !currentUserId) return;
+      
+      try {
+        setChatLoading(true);
+        const res = await aiApi.get(`history/${pk}`, {
+          params: { user_id: currentUserId } 
+        });
+
+        if (res.data?.history) {
+          const recent = res.data.history.map(item => ({
+            role: item.role,
+            text: item.content
+          }));
+          setMessages(recent);
+        } else {
+          setMessages([]); 
+        }
+      } catch (err) {
+        console.error("Failed to load isolated history:", err);
+        setMessages([]); 
+      } finally {
+        setChatLoading(false);
+      }
+    };
+    loadSavedHistory();
+  }, [pk, currentUserId]); 
+
+  // 3. WEBSOCKET SYNC
+  useEffect(() => {
+    if (!pk || !currentUserId) return;
+
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${protocol}://127.0.0.1:4000/ws/document/${pk}/`;
     
@@ -71,7 +107,7 @@ export default function DocumentDetail() {
     };
   }, [pk, currentUserId]);
 
-  // 3. AUTO-SAVE & BROADCAST
+  // 4. AUTO-SAVE & BROADCAST
   useEffect(() => {
     if (!doc.title && !doc.content) return;
 
@@ -86,7 +122,7 @@ export default function DocumentDetail() {
 
     const delayDebounceFn = setTimeout(() => handleSave(), 2000);
     return () => clearTimeout(delayDebounceFn);
-  }, [doc.title, doc.content]);
+  }, [doc.title, doc.content, currentUserId]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -100,21 +136,51 @@ export default function DocumentDetail() {
     finally { setSaving(false); }
   };
 
-  // 4. PDF EXPORT LOGIC
+  // 5. CHAT SEND LOGIC
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    const cleanMsg = chatInput.trim();
+    if (!cleanMsg || chatLoading) return;
+
+    if (!currentUserId) {
+        Toast.fire({ icon: 'error', title: 'User session not found. Please log in.' });
+        return;
+    }
+
+    setMessages(prev => [...prev, { role: "user", text: cleanMsg }]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await aiApi.post("chat", {
+        message: cleanMsg,
+        doc_id: String(pk),
+        workspace_id: String(doc.workspace),
+        user_id: String(currentUserId) 
+      });
+      
+      setMessages(prev => [...prev, { role: "ai", text: res.data.response }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "ai", text: "⚠️ AI service unavailable." }]);
+    } finally {
+      setChatLoading(false);
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }
+  };
+
+  // 6. UI ACTIONS
   const handleExportPDF = async () => {
     setExporting(true);
     try {
       await api.post(`/documents/${pk}/export-pdf/`);
       Toast.fire({ icon: 'success', title: 'PDF Generation Started' });
-      // Polling or waiting for update could go here
     } catch (err) {
       Toast.fire({ icon: 'error', title: 'Export failed' });
-    } finally {
-      setExporting(false);
-    }
+    } finally { setExporting(false); }
   };
 
-  // 5. DELETE LOGIC
   const handleDelete = async () => {
     const result = await Swal.fire({
       title: 'Move to Trash?',
@@ -130,33 +196,7 @@ export default function DocumentDetail() {
         navigate(-1);
       } catch (err) {
         Toast.fire({ icon: 'error', title: 'Delete failed' });
-      } finally {
-        setDeleting(false);
-      }
-    }
-  };
-
-  // 6. CHAT LOGIC
-  const sendChatMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
-
-    const userMsg = { role: "user", text: chatInput };
-    setMessages(prev => [...prev, userMsg]);
-    setChatInput("");
-    setChatLoading(true);
-
-    try {
-      const res = await aiApi.post("chat", {
-        message: chatInput,
-        doc_id: String(pk),
-        workspace_id: String(doc.workspace)
-      });
-      setMessages(prev => [...prev, { role: "ai", text: res.data.response }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { role: "ai", text: "AI unavailable." }]);
-    } finally {
-      setChatLoading(false);
+      } finally { setDeleting(false); }
     }
   };
 
@@ -177,7 +217,6 @@ export default function DocumentDetail() {
         <div className="d-flex align-items-center gap-2">
           {saving && <div className="text-muted small animate-pulse">Syncing...</div>}
           
-          {/* PDF DOWNLOAD LINK IF EXISTS */}
           {doc.pdf_file && (
             <a href={doc.pdf_file} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-success rounded-pill">
               <Download size={16} />
@@ -213,26 +252,49 @@ export default function DocumentDetail() {
 
         {isChatOpen && (
           <aside className="border-start bg-white d-flex flex-column shadow-lg" style={{ width: '380px' }}>
-             <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
-              <span className="fw-bold text-primary"><MessageSquare size={18} className="me-2"/>AI Assistant</span>
-              <button className="btn btn-sm" onClick={() => setIsChatOpen(false)}><X size={20}/></button>
+             <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+              <span className="fw-bold text-primary d-flex align-items-center gap-2">
+                <MessageSquare size={18}/>AI Assistant
+              </span>
+              <button className="btn btn-sm p-0" onClick={() => setIsChatOpen(false)}><X size={20}/></button>
             </div>
+            
             <div ref={scrollRef} className="flex-grow-1 p-3 overflow-auto d-flex flex-column gap-3 bg-light">
+              {messages.length === 0 && !chatLoading && (
+                <div className="text-center text-muted my-auto small">Ask a question about this document</div>
+              )}
               {messages.map((m, i) => (
-                <div key={i} className={`p-3 rounded-4 shadow-sm ${m.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-white border'}`} style={{ maxWidth: '85%' }}>
+                <div key={i} className={`p-3 rounded-4 shadow-sm ${m.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-white border text-dark'}`} style={{ maxWidth: '85%', fontSize: '0.9rem' }}>
                   {m.text}
                 </div>
               ))}
-              {chatLoading && <Loader2 className="animate-spin text-primary mx-auto" />}
+              {chatLoading && (
+                <div className="d-flex align-items-center gap-2 text-primary small p-2">
+                   <Loader2 size={14} className="animate-spin" /> Thinking...
+                </div>
+              )}
             </div>
+
             <form onSubmit={sendChatMessage} className="p-3 border-top bg-white d-flex gap-2">
-              <input className="form-control rounded-pill px-3" placeholder="Ask AI..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
-              <button className="btn btn-primary rounded-circle" type="submit" disabled={chatLoading}><Send size={18}/></button>
+              <input 
+                className="form-control rounded-pill px-3 shadow-none border-light-subtle" 
+                placeholder="Message AI..." 
+                value={chatInput} 
+                onChange={e => setChatInput(e.target.value)} 
+              />
+              <button className="btn btn-primary rounded-circle d-flex align-items-center justify-content-center p-2" type="submit" disabled={chatLoading || !chatInput.trim()}>
+                <Send size={18}/>
+              </button>
             </form>
           </aside>
         )}
       </main>
-      <style>{`.animate-spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        .animate-spin { animation: spin 1s linear infinite; } 
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+      `}</style>
     </div>
   );
 }
