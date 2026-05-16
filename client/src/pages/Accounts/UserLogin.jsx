@@ -24,63 +24,111 @@ const theme = {
 
 const S = {
   page: {
-    minHeight: "100vh", display: "flex",
+    minHeight: "100vh",
+    display: "flex",
     background: `linear-gradient(135deg, ${theme.navy} 0%, #0D1B2E 50%, #132039 100%)`,
     fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    position: "relative", overflow: "hidden",
+    position: "relative",
+    overflow: "hidden",
   },
   bgDots: {
-    position: "absolute", inset: 0, pointerEvents: "none",
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
     backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)`,
     backgroundSize: "28px 28px",
   },
   bgOrb1: {
-    position: "absolute", width: 480, height: 480, borderRadius: "50%",
+    position: "absolute",
+    width: 480,
+    height: 480,
+    borderRadius: "50%",
     background: "radial-gradient(circle, rgba(79,110,247,0.18) 0%, transparent 70%)",
-    top: -120, left: -80, pointerEvents: "none",
+    top: -120,
+    left: -80,
+    pointerEvents: "none",
   },
   bgOrb2: {
-    position: "absolute", width: 360, height: 360, borderRadius: "50%",
+    position: "absolute",
+    width: 360,
+    height: 360,
+    borderRadius: "50%",
     background: "radial-gradient(circle, rgba(79,110,247,0.10) 0%, transparent 70%)",
-    bottom: -80, right: -60, pointerEvents: "none",
+    bottom: -80,
+    right: -60,
+    pointerEvents: "none",
   },
   brand: {
-    flex: "0 0 420px", display: "flex", flexDirection: "column",
-    justifyContent: "center", padding: "60px 52px",
-    position: "relative", zIndex: 1,
+    flex: "0 0 420px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    padding: "60px 52px",
+    position: "relative",
+    zIndex: 1,
   },
   brandLogo: { display: "flex", alignItems: "center", gap: 10, marginBottom: 32 },
   logoIcon: {
-    width: 40, height: 40, borderRadius: 10, background: theme.indigo,
-    display: "flex", alignItems: "center", justifyContent: "center",
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    background: theme.indigo,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   logoText: { fontSize: 22, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.4px" },
   brandHeadline: {
-    fontSize: 38, fontWeight: 700, color: "#FFFFFF",
-    lineHeight: 1.2, letterSpacing: "-0.8px", marginBottom: 12,
+    fontSize: 38,
+    fontWeight: 700,
+    color: "#FFFFFF",
+    lineHeight: 1.2,
+    letterSpacing: "-0.8px",
+    marginBottom: 12,
   },
   brandSub: { fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.6 },
   formPane: {
-    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-    padding: "40px 24px", position: "relative", zIndex: 1,
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "40px 24px",
+    position: "relative",
+    zIndex: 1,
   },
   card: {
-    background: theme.surface, borderRadius: 20, padding: "48px 44px",
-    width: "100%", maxWidth: 440, boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
+    background: theme.surface,
+    borderRadius: 20,
+    padding: "48px 44px",
+    width: "100%",
+    maxWidth: 440,
+    boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
   },
   cardHeader: { marginBottom: 36, textAlign: "center" },
   cardTitle: { fontSize: 26, fontWeight: 700, color: theme.text, letterSpacing: "-0.5px", marginBottom: 6 },
   cardSub: { fontSize: 14, color: theme.muted },
   fieldWrap: { marginBottom: 18 },
   label: {
-    display: "block", fontSize: 12.5, fontWeight: 600, color: theme.textSoft,
-    marginBottom: 6, letterSpacing: "0.3px", textTransform: "uppercase",
+    display: "block",
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: theme.textSoft,
+    marginBottom: 6,
+    letterSpacing: "0.3px",
+    textTransform: "uppercase",
   },
   inputBase: {
-    display: "block", width: "100%", boxSizing: "border-box",
-    padding: "11px 14px", borderRadius: theme.radiusSm,
-    border: `1.5px solid ${theme.border}`, fontSize: 14.5, color: theme.text,
-    outline: "none", transition: "border-color .15s, box-shadow .15s", background: "#FAFBFC",
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 14px",
+    borderRadius: theme.radiusSm,
+    border: `1.5px solid ${theme.border}`,
+    fontSize: 14.5,
+    color: theme.text,
+    outline: "none",
+    transition: "border-color .15s, box-shadow .15s",
+    background: "#FAFBFC",
   },
   inputError: { border: `1.5px solid ${theme.danger}`, background: theme.dangerBg },
   errMsg: { fontSize: 12, color: theme.danger, marginTop: 5, display: "flex", alignItems: "center", gap: 4 },
@@ -90,23 +138,76 @@ const S = {
   divLine: { flex: 1, height: 1, background: theme.border },
   divLabel: { padding: "0 14px", fontSize: 11.5, fontWeight: 600, color: theme.muted, letterSpacing: "0.8px", textTransform: "uppercase" },
   btnPrimary: {
-    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-    width: "100%", padding: "13px", borderRadius: theme.radiusSm,
-    background: theme.indigo, color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-    border: "none", cursor: "pointer", transition: "background .15s, transform .1s", letterSpacing: "-0.1px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    padding: "13px",
+    borderRadius: theme.radiusSm,
+    background: theme.indigo,
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: 600,
+    border: "none",
+    cursor: "pointer",
+    transition: "background .15s, transform .1s",
+    letterSpacing: "-0.1px",
   },
   btnGoogle: {
-    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-    width: "100%", padding: "12px", borderRadius: theme.radiusSm,
-    background: "#FFFFFF", color: theme.text, fontSize: 14.5, fontWeight: 600,
-    border: `1.5px solid ${theme.border}`, cursor: "pointer", transition: "background .15s, border-color .15s",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    width: "100%",
+    padding: "12px",
+    borderRadius: theme.radiusSm,
+    background: "#FFFFFF",
+    color: theme.text,
+    fontSize: 14.5,
+    fontWeight: 600,
+    border: `1.5px solid ${theme.border}`,
+    cursor: "pointer",
+    transition: "background .15s, border-color .15s",
   },
   footer: { marginTop: 28, textAlign: "center", fontSize: 13.5, color: theme.muted },
   footerLink: { background: "none", border: "none", cursor: "pointer", color: theme.indigo, fontWeight: 600, padding: 0, fontSize: 13.5 },
   spinner: {
-    width: 18, height: 18, border: "2.5px solid rgba(255,255,255,0.3)",
-    borderTopColor: "#FFF", borderRadius: "50%", animation: "spin .7s linear infinite",
+    width: 18,
+    height: 18,
+    border: "2.5px solid rgba(255,255,255,0.3)",
+    borderTopColor: "#FFF",
+    borderRadius: "50%",
+    animation: "spin .7s linear infinite",
   },
+  alertBanner: {
+    padding: "16px",
+    background: "#FFFBEB",
+    border: "1px solid #FEF3C7",
+    borderRadius: "10px",
+    marginBottom: "24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px"
+  },
+  alertContent: { display: "flex", gap: "10px", alignItems: "flex-start" },
+  alertText: { margin: 0, fontSize: "13.5px", color: "#92400E", fontWeight: 500, lineHeight: "1.45" },
+  alertBtn: {
+    width: "100%",
+    padding: "10px",
+    background: "#D97706",
+    color: "#FFFFFF",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "13.5px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+    transition: "background 0.15s"
+  }
 };
 
 const LogoMark = () => (
@@ -126,10 +227,26 @@ const ErrIcon = () => (
   </svg>
 );
 
+const WarningIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/>
+    <line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+);
+
+const ArrowRightIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+    <polyline points="12 5 19 12 12 19"/>
+  </svg>
+);
+
 const UserLogin = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [fieldErrors, setFieldErrors] = useState({});
   const [hover, setHover] = useState(null);
+  const [isUnverified, setIsUnverified] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading } = useSelector((state) => state.auth);
@@ -151,46 +268,51 @@ const UserLogin = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setFieldErrors({});
+    e.preventDefault();
+    setFieldErrors({});
+    setIsUnverified(false);
 
-  try {
-    const resultAction = await dispatch(loginUser(form));
+    try {
+      const resultAction = await dispatch(loginUser(form));
 
-    if (loginUser.fulfilled.match(resultAction)) {
-      const profileResult = await dispatch(fetchUserProfile()).unwrap();
-      
-      // Toast triggered here
-      toast.success("Welcome back!"); 
+      if (loginUser.fulfilled.match(resultAction)) {
+        const profileResult = await dispatch(fetchUserProfile()).unwrap();
+        
+        toast.success("Welcome back!"); 
+        sendFCMTokenToBackend().catch(err => console.error("FCM failed:", err));
 
-      sendFCMTokenToBackend().catch(err => console.error("FCM failed:", err));
-
-      if (profileResult?.is_staff) {
-        navigate("/collabrix_admin", { replace: true });
-      } else {
-        navigate("/", { replace: true });
+        if (profileResult?.is_staff) {
+          navigate("/collabrix_admin", { replace: true });
+        } else {
+          navigate("/", { replace: true });
+        }
+        return; 
       }
-      return; 
-    }
 
-    const errorData = resultAction.payload;
-    if (errorData) {
-      setFieldErrors(errorData);
-      if (errorData.detail) {
-        toast.error(errorData.detail);
-      } 
-      else if (errorData.non_field_errors) {
-        toast.error(errorData.non_field_errors[0]);
-      } 
-    } else {
-      toast.error("Server error. Please try again later.");
-    }
+      const errorData = resultAction.payload;
+      if (errorData) {
+        setFieldErrors(errorData);
+        
+        if (
+          errorData.needs_verification || 
+          (errorData.detail && (errorData.detail.toLowerCase().includes("verify") || errorData.detail.toLowerCase().includes("verification"))) ||
+          (errorData.non_field_errors && errorData.non_field_errors[0]?.toLowerCase().includes("identity missing"))
+        ) {
+          setIsUnverified(true);
+        } else if (errorData.detail) {
+          toast.error(errorData.detail);
+        } else if (errorData.non_field_errors) {
+          toast.error(errorData.non_field_errors[0]);
+        } 
+      } else {
+        toast.error("Server error. Please try again later.");
+      }
 
-  } catch (err) {
-    console.error("Critical Login Error:", err);
-    toast.error("Failed to connect to the server.");
-  }
-};
+    } catch (err) {
+      console.error("Critical Login Error:", err);
+      toast.error("Failed to connect to the server.");
+    }
+  };
 
   const handleGoogleLogin = () => {
     const clientId = "113584658101-1mcdiqv8vaqtqnlp9ftr952gdr415q2d.apps.googleusercontent.com";
@@ -227,6 +349,29 @@ const UserLogin = () => {
             <h2 style={S.cardTitle}>Sign in to Collabrix</h2>
             <p style={S.cardSub}>Enter your credentials to continue</p>
           </div>
+
+          {isUnverified && (
+            <div style={S.alertBanner}>
+              <div style={S.alertContent}>
+                <WarningIcon />
+                <p style={S.alertText}>
+                  Your account identity email verification is pending. Please complete your security setup to regain full workspace privileges.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/verify-otp", { state: { email: form.email } })}
+                style={{
+                  ...S.alertBtn,
+                  background: hover === "alert-btn" ? "#B45309" : "#D97706"
+                }}
+                onMouseEnter={() => setHover("alert-btn")}
+                onMouseLeave={() => setHover(null)}
+              >
+                Go to Verification Page <ArrowRightIcon />
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} noValidate>
             <div style={S.fieldWrap}>

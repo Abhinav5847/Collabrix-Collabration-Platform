@@ -7,11 +7,9 @@ export const googleLogin = createAsyncThunk(
   async (code, { rejectWithValue }) => {
     try {
       const response = await api.post('/accounts/google_login/', { code }); 
-      
       localStorage.setItem('isAuthenticated', 'true');
       return response.data;
     } catch (err) {
-      
       return rejectWithValue(err.response?.data || "Google login failed");
     }
   }
@@ -25,7 +23,8 @@ export const loginUser = createAsyncThunk(
       localStorage.setItem('isAuthenticated', 'true');
       return response.data; 
     } catch (err) {
-      return rejectWithValue(err.response?.data || "Login failed");
+      // Pass along structured backend details (e.g. { needs_verification: true, user: {...} })
+      return rejectWithValue(err.response?.data || { detail: "Login failed" });
     }
   }
 );
@@ -41,7 +40,6 @@ export const registerUser = createAsyncThunk(
     }
   }
 );
-
 
 export const verifyOtp = createAsyncThunk(
   'auth/verifyOtp',
@@ -64,14 +62,26 @@ export const fetchUserProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('accounts/user/profile/');
-
       console.log("PROFILE RESPONSE:", response.data);
-
       return response.data;
-
     } catch (err) {
       localStorage.removeItem('isAuthenticated');
       return rejectWithValue(err.response?.data || "Failed to load user profile");
+    }
+  }
+);
+
+/**
+ * Updates user profile information (email and username only).
+ */
+export const updateUserProfile = createAsyncThunk(
+  'auth/updateUserProfile',
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const response = await api.patch('accounts/user/profile/', profileData);
+      return response.data; // Expected: { message: "...", needs_verification: true/false, user: { ... } }
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Failed to update profile");
     }
   }
 );
@@ -145,7 +155,6 @@ const authSlice = createSlice({
   initialState: {
     user: null, 
     isAuthenticated: localStorage.getItem('isAuthenticated') === 'true',
-    // Start loading as true if we have a session to check
     loading: localStorage.getItem('isAuthenticated') === 'true',
     error: null,
     qrImage: null,
@@ -177,8 +186,19 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
-        state.user = action.payload; // Contains updated mfa_enabled status
+        state.user = action.payload; 
         state.isAuthenticated = true;
+        state.loading = false;
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        if (action.payload.needs_verification) {
+          // Explicit logout scenario on changing email
+          localStorage.removeItem('isAuthenticated');
+          state.isAuthenticated = false;
+          state.user = action.payload.user || null;
+        } else {
+          state.user = action.payload.user || action.payload;
+        }
         state.loading = false;
       })
       .addCase(fetchMfaQr.fulfilled, (state, action) => {
@@ -186,7 +206,6 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(verifyMfa.fulfilled, (state, action) => {
-        // Manually update the user status to avoid a second profile fetch
         if (state.user) {
           state.user.mfa_enabled = action.payload.mfa_enabled || true;
         }
@@ -194,10 +213,25 @@ const authSlice = createSlice({
         state.loading = false;
       })
 
-      // Rejected Handlers
+      // Explicit Rejected Handlers
       .addCase(fetchUserProfile.rejected, (state) => {
         state.user = null;
         state.isAuthenticated = false;
+        state.loading = false;
+      })
+      .addCase(loginUser.rejected, (state, action) => {
+        // --- FIXED CRITICAL ACTION: Catch unverified payload to block dead-ends ---
+        const payload = action.payload;
+        if (
+          payload?.needs_verification || 
+          (payload?.detail && (payload.detail.toLowerCase().includes("verify") || payload.detail.toLowerCase().includes("verification")))
+        ) {
+          // Stash the user details returned from backend so components have full validation access
+          state.user = payload.user || { email: state.error?.email || null, is_email_verified: false };
+          state.isAuthenticated = false;
+        } else {
+          state.user = null;
+        }
         state.loading = false;
       })
 
