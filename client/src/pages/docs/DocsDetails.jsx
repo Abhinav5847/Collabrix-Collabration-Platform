@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux"; // Import useSelector
-import { api } from "../../services/api"; 
-import { aiApi } from "../../services/aiApi"; 
-import Swal from "sweetalert2"; 
-import { 
-  ArrowLeft, X, Sparkles, Send, 
-  Loader2, MessageSquare, Trash2, FileText, Download 
+import { useSelector } from "react-redux";
+import { api } from "../../services/api";
+import Swal from "sweetalert2";
+import {
+  ArrowLeft, X, Sparkles, Loader2, Trash2, FileText, Download
 } from "lucide-react";
+import CollabrixChat from "../ai/aiChatBot"; 
 
 const Toast = Swal.mixin({
   toast: true,
@@ -20,24 +19,22 @@ const Toast = Swal.mixin({
 export default function DocumentDetail() {
   const { pk } = useParams();
   const navigate = useNavigate();
-  const scrollRef = useRef(null);
   const socketRef = useRef(null);
   const isRemoteUpdate = useRef(false);
-  
-  // FIX: Get User ID from Redux Auth Slice instead of localStorage
+
   const user = useSelector((state) => state.auth.user);
   const currentUserId = user?.id || user?.user_id || user?.pk;
 
-  const [doc, setDoc] = useState({ title: "", content: "", workspace: "", is_exporting: false, pdf_file: null });
+  // Local document state
+  const [doc, setDoc] = useState({ title: "", content: "", workspace: "", pdf_file: null, is_exporting: false, updated_at: "" });
+  
+  // Independent UI Operation States
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
-  const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [chatLoading, setChatLoading] = useState(false);
 
-  // 1. INITIAL LOAD (Document Metadata)
+  // Fetch document meta
   useEffect(() => {
     const fetchDoc = () => {
       api.get(`/documents/documents/${pk}/`)
@@ -47,51 +44,17 @@ export default function DocumentDetail() {
     fetchDoc();
   }, [pk]);
 
-  // 2. ISOLATED HISTORY LOAD
-  useEffect(() => {
-    const loadSavedHistory = async () => {
-      // If Redux hasn't loaded the user yet, we wait
-      if (!pk || !currentUserId) return;
-      
-      try {
-        setChatLoading(true);
-        const res = await aiApi.get(`history/${pk}`, {
-          params: { user_id: currentUserId } 
-        });
-
-        if (res.data?.history) {
-          const recent = res.data.history.map(item => ({
-            role: item.role,
-            text: item.content
-          }));
-          setMessages(recent);
-        } else {
-          setMessages([]); 
-        }
-      } catch (err) {
-        console.error("Failed to load isolated history:", err);
-        setMessages([]); 
-      } finally {
-        setChatLoading(false);
-      }
-    };
-    loadSavedHistory();
-  }, [pk, currentUserId]); 
-
-  // 3. WEBSOCKET SYNC
+  // Collaborative WebSocket session handler
   useEffect(() => {
     if (!pk || !currentUserId) return;
-
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${protocol}://127.0.0.1:4000/ws/document/${pk}/`;
-    
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
-
     socket.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (String(data.sender_id) !== String(currentUserId)) {
-        isRemoteUpdate.current = true; 
+        isRemoteUpdate.current = true;
         setDoc(prev => ({
           ...prev,
           title: data.title ?? prev.title,
@@ -99,18 +62,16 @@ export default function DocumentDetail() {
         }));
       }
     };
-
     return () => {
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-          socket.close();
+        socket.close();
       }
     };
   }, [pk, currentUserId]);
 
-  // 4. AUTO-SAVE & BROADCAST
+  // Debounced auto-save sequence
   useEffect(() => {
     if (!doc.title && !doc.content) return;
-
     if (!isRemoteUpdate.current && socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
         title: doc.title,
@@ -119,9 +80,8 @@ export default function DocumentDetail() {
       }));
     }
     isRemoteUpdate.current = false;
-
-    const delayDebounceFn = setTimeout(() => handleSave(), 2000);
-    return () => clearTimeout(delayDebounceFn);
+    const MathAutoSaveDelay = setTimeout(() => handleSave(), 2000);
+    return () => clearTimeout(MathAutoSaveDelay);
   }, [doc.title, doc.content, currentUserId]);
 
   const handleSave = async () => {
@@ -132,53 +92,90 @@ export default function DocumentDetail() {
         content: doc.content,
         workspace: doc.workspace
       });
-    } catch (err) { console.error("Save error"); }
-    finally { setSaving(false); }
-  };
-
-  // 5. CHAT SEND LOGIC
-  const sendChatMessage = async (e) => {
-    e.preventDefault();
-    const cleanMsg = chatInput.trim();
-    if (!cleanMsg || chatLoading) return;
-
-    if (!currentUserId) {
-        Toast.fire({ icon: 'error', title: 'User session not found. Please log in.' });
-        return;
-    }
-
-    setMessages(prev => [...prev, { role: "user", text: cleanMsg }]);
-    setChatInput("");
-    setChatLoading(true);
-
-    try {
-      const res = await aiApi.post("chat", {
-        message: cleanMsg,
-        doc_id: String(pk),
-        workspace_id: String(doc.workspace),
-        user_id: String(currentUserId) 
-      });
-      
-      setMessages(prev => [...prev, { role: "ai", text: res.data.response }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { role: "ai", text: "⚠️ AI service unavailable." }]);
-    } finally {
-      setChatLoading(false);
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
+    } catch (err) { 
+      console.error("Save error:", err); 
+    } finally { 
+      setSaving(false); 
     }
   };
 
-  // 6. UI ACTIONS
+  // Fixed decoupled PDF Export Handler with Flat Polling Lookups
   const handleExportPDF = async () => {
+    if (exporting) return;
+
     setExporting(true);
+    let attemptCounter = 0;
+    const maximumAttempts = 30; 
+    const pollIntervalTime = 3000;
+    
+    // Create a benchmark timestamp to identify the *new* file drop cleanly
+    const exportSessionToken = new Date().getTime();
+
     try {
+      // 1. Fire generation sequence
+      // Note: If you encounter a 404 error here, change this URL string directly to: `/documents/documents/${pk}/export-pdf/`
       await api.post(`/documents/${pk}/export-pdf/`);
-      Toast.fire({ icon: 'success', title: 'PDF Generation Started' });
+      
+      Toast.fire({ 
+        icon: 'info', 
+        title: 'PDF Generation Started', 
+        text: 'Compiling document layout...',
+        timer: 2000
+      });
+
+      // 2. Open tracking interval routine
+      const pollingTracker = setInterval(async () => {
+        attemptCounter++;
+
+        if (attemptCounter > maximumAttempts) {
+          clearInterval(pollingTracker);
+          setExporting(false);
+          Toast.fire({ icon: 'error', title: 'Export timed out', text: 'Please try again.' });
+          return;
+        }
+
+        try {
+          const checkResponse = await api.get(`/documents/documents/${pk}/`);
+          const technicalData = checkResponse.data;
+
+          // Compute if the database instance record update occurred AFTER we hit the export button
+          const backendLastUpdate = new Date(technicalData.updated_at || new Date()).getTime();
+          const isFreshFile = backendLastUpdate > exportSessionToken || !doc.pdf_file;
+
+          // Resolve on structural completion flag from Django backend pipeline
+          if (technicalData.is_exporting === false && technicalData.pdf_file && isFreshFile) {
+            clearInterval(pollingTracker);
+            setDoc(technicalData);
+            setExporting(false);
+
+            Toast.fire({ icon: 'success', title: 'Download ready!' });
+
+            const fileUrl = typeof technicalData.pdf_file === 'string' 
+              ? technicalData.pdf_file 
+              : technicalData.pdf_file?.url;
+
+            if (fileUrl) {
+              const downloadLink = document.createElement("a");
+              downloadLink.href = fileUrl;
+              downloadLink.target = "_blank";
+              downloadLink.rel = "noreferrer";
+              const baseName = fileUrl.split('/').pop() || `Exported_Document_${pk}.pdf`;
+              downloadLink.setAttribute("download", baseName);
+              document.body.appendChild(downloadLink);
+              downloadLink.click();
+              document.body.removeChild(downloadLink);
+            }
+          }
+        } catch (pollError) {
+          console.error("Error monitoring export tracking routine:", pollError);
+        }
+      }, pollIntervalTime);
+
     } catch (err) {
-      Toast.fire({ icon: 'error', title: 'Export failed' });
-    } finally { setExporting(false); }
+      console.error("Export trigger failed:", err);
+      Toast.fire({ icon: 'error', title: 'Export failed', text: 'Could not initiate PDF generation.' });
+      setExporting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -188,7 +185,6 @@ export default function DocumentDetail() {
       showCancelButton: true,
       confirmButtonText: 'Yes, move it'
     });
-
     if (result.isConfirmed) {
       setDeleting(true);
       try {
@@ -201,99 +197,228 @@ export default function DocumentDetail() {
   };
 
   return (
-    <div className="vh-100 d-flex flex-column bg-white overflow-hidden">
-      <header className="border-bottom px-3 d-flex align-items-center justify-content-between bg-white shadow-sm" style={{ height: 60 }}>
-        <div className="d-flex align-items-center gap-3 flex-grow-1">
-          <button className="btn btn-sm btn-light rounded-circle shadow-sm" onClick={() => navigate(-1)}>
-            <ArrowLeft size={18}/>
+    <div className="cbx-root">
+      {/* ── TOPBAR ── */}
+      <header className="cbx-topbar">
+        <div className="cbx-topbar-left">
+          <button className="cbx-icon-btn" onClick={() => navigate(-1)} title="Go back">
+            <ArrowLeft size={16} />
           </button>
-          <input 
-            className="form-control border-0 fw-bold fs-5 shadow-none p-0 bg-transparent" 
-            value={doc.title} 
-            onChange={(e) => setDoc({...doc, title: e.target.value})} 
-          />
-        </div>
-
-        <div className="d-flex align-items-center gap-2">
-          {saving && <div className="text-muted small animate-pulse">Syncing...</div>}
-          
-          {doc.pdf_file && (
-            <a href={doc.pdf_file} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-success rounded-pill">
-              <Download size={16} />
-            </a>
-          )}
-
-          <button className="btn btn-sm btn-outline-secondary rounded-pill" onClick={handleExportPDF} disabled={exporting || doc.is_exporting}>
-            {exporting || doc.is_exporting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-          </button>
-
-          <button className="btn btn-sm btn-outline-danger rounded-pill" onClick={handleDelete} disabled={deleting}>
-            <Trash2 size={16} />
-          </button>
-
-          <button className={`btn btn-sm rounded-pill ${isChatOpen ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setIsChatOpen(!isChatOpen)}>
-            <Sparkles size={16} /> AI
-          </button>
-        </div>
-      </header>
-
-      <main className="d-flex flex-grow-1 overflow-hidden bg-light">
-        <div className="flex-grow-1 p-4 overflow-auto">
-          <div className="mx-auto shadow-sm bg-white rounded-4 border" style={{ maxWidth: '850px', minHeight: '100%' }}>
-            <textarea 
-              className="form-control border-0 shadow-none p-5 rounded-4" 
-              style={{ minHeight: '80vh', fontSize: '1.1rem', lineHeight: '1.8', resize: 'none' }} 
-              value={doc.content} 
-              onChange={(e) => setDoc({...doc, content: e.target.value})} 
-              placeholder="Start collaborating..."
+          <div className="cbx-breadcrumb">
+            <span className="cbx-brand">Collabrix</span>
+            <span className="cbx-chevron">/</span>
+            <input
+              className="cbx-title-input"
+              value={doc.title}
+              onChange={(e) => setDoc({ ...doc, title: e.target.value })}
+              placeholder="Untitled document"
             />
           </div>
         </div>
 
-        {isChatOpen && (
-          <aside className="border-start bg-white d-flex flex-column shadow-lg" style={{ width: '380px' }}>
-             <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-              <span className="fw-bold text-primary d-flex align-items-center gap-2">
-                <MessageSquare size={18}/>AI Assistant
-              </span>
-              <button className="btn btn-sm p-0" onClick={() => setIsChatOpen(false)}><X size={20}/></button>
-            </div>
-            
-            <div ref={scrollRef} className="flex-grow-1 p-3 overflow-auto d-flex flex-column gap-3 bg-light">
-              {messages.length === 0 && !chatLoading && (
-                <div className="text-center text-muted my-auto small">Ask a question about this document</div>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} className={`p-3 rounded-4 shadow-sm ${m.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-white border text-dark'}`} style={{ maxWidth: '85%', fontSize: '0.9rem' }}>
-                  {m.text}
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="d-flex align-items-center gap-2 text-primary small p-2">
-                   <Loader2 size={14} className="animate-spin" /> Thinking...
-                </div>
-              )}
-            </div>
+        <div className="cbx-topbar-right">
+          {saving && (
+            <span className="cbx-sync-pill">
+              <Loader2 size={11} className="cbx-spin" /> Syncing
+            </span>
+          )}
 
-            <form onSubmit={sendChatMessage} className="p-3 border-top bg-white d-flex gap-2">
-              <input 
-                className="form-control rounded-pill px-3 shadow-none border-light-subtle" 
-                placeholder="Message AI..." 
-                value={chatInput} 
-                onChange={e => setChatInput(e.target.value)} 
+          {doc.pdf_file && (
+            <a 
+              href={typeof doc.pdf_file === 'string' ? doc.pdf_file : doc.pdf_file?.url} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="cbx-action-btn cbx-action-btn--success" 
+              title="Download PDF"
+            >
+              <Download size={14} />
+            </a>
+          )}
+
+          <button 
+            className="cbx-action-btn" 
+            onClick={handleExportPDF} 
+            disabled={exporting} 
+            title="Export PDF"
+          >
+            {exporting ? (
+              <>
+                <Loader2 size={14} className="cbx-spin" />
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <FileText size={14} />
+                <span>Export</span>
+              </>
+            )}
+          </button>
+
+          <button className="cbx-action-btn cbx-action-btn--danger" onClick={handleDelete} disabled={deleting} title="Delete">
+            <Trash2 size={14} />
+          </button>
+
+          <button
+            className={`cbx-ai-toggle ${isChatOpen ? 'cbx-ai-toggle--active' : ''}`}
+            onClick={() => setIsChatOpen(!isChatOpen)}
+          >
+            <Sparkles size={14} />
+            <span>AI</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── BODY ── */}
+      <main className="cbx-main">
+        {/* EDITOR */}
+        <div className="cbx-editor-wrap">
+          <div className="cbx-page">
+            <div className="cbx-page-header">
+              <div className="cbx-page-icon">📄</div>
+              <input
+                className="cbx-page-title"
+                value={doc.title}
+                onChange={(e) => setDoc({ ...doc, title: e.target.value })}
+                placeholder="Untitled"
               />
-              <button className="btn btn-primary rounded-circle d-flex align-items-center justify-content-center p-2" type="submit" disabled={chatLoading || !chatInput.trim()}>
-                <Send size={18}/>
-              </button>
-            </form>
+            </div>
+            <textarea
+              className="cbx-editor"
+              value={doc.content}
+              onChange={(e) => setDoc({ ...doc, content: e.target.value })}
+              placeholder="Start writing… press / for commands"
+            />
+          </div>
+        </div>
+
+        {/* AI CHAT PANEL */}
+        {isChatOpen && (
+          <aside className="cbx-chat" style={{ position: 'relative' }}>
+            <button 
+              className="cbx-icon-btn cbx-icon-btn--sm" 
+              onClick={() => setIsChatOpen(false)}
+              style={{ position: 'absolute', top: '12px', right: '14px', zIndex: 10 }}
+            >
+              <X size={14} />
+            </button>
+            
+            <CollabrixChat 
+              docId={pk} 
+              workspaceId={doc.workspace} 
+              userId={currentUserId} 
+            />
           </aside>
         )}
       </main>
+
       <style>{`
-        .animate-spin { animation: spin 1s linear infinite; } 
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .cbx-root {
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          background: #f7f6f3;
+          font-family: 'DM Sans', sans-serif;
+          color: #1a1a1a;
+          overflow: hidden;
+        }
+
+        .cbx-topbar {
+          height: 52px;
+          background: #ffffff;
+          border-bottom: 1px solid #e8e6e0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          gap: 12px;
+          flex-shrink: 0;
+          z-index: 50;
+        }
+        .cbx-topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+        .cbx-breadcrumb { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+        .cbx-brand { font-size: 13px; font-weight: 600; color: #6e6a63; white-space: nowrap; letter-spacing: 0.01em; }
+        .cbx-chevron { color: #c5c1b9; font-size: 13px; flex-shrink: 0; }
+        .cbx-title-input {
+          border: none; background: transparent; outline: none; font-size: 14px; font-weight: 500;
+          color: #1a1a1a; font-family: 'DM Sans', sans-serif; min-width: 0; flex: 1; padding: 4px 6px;
+          border-radius: 4px; transition: background 0.15s;
+        }
+        .cbx-title-input:hover { background: #f0ede8; }
+        .cbx-title-input:focus { background: #ebe8e2; }
+        .cbx-title-input::placeholder { color: #c5c1b9; }
+
+        .cbx-topbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+        .cbx-icon-btn {
+          width: 30px; height: 30px; border-radius: 6px; border: none; background: transparent;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          color: #6e6a63; transition: background 0.15s, color 0.15s; flex-shrink: 0;
+        }
+        .cbx-icon-btn:hover { background: #f0ede8; color: #1a1a1a; }
+        .cbx-icon-btn--sm { width: 24px; height: 24px; }
+
+        .cbx-sync-pill {
+          display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9e9a93;
+          background: #f7f6f3; border: 1px solid #e8e6e0; border-radius: 20px; padding: 3px 10px; white-space: nowrap;
+        }
+
+        .cbx-action-btn {
+          display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px;
+          border-radius: 6px; border: 1px solid #e8e6e0; background: #ffffff; font-size: 12px;
+          font-weight: 500; color: #3d3d3d; cursor: pointer; font-family: 'DM Sans', sans-serif;
+          transition: background 0.15s, border-color 0.15s; text-decoration: none;
+        }
+        .cbx-action-btn:hover:not(:disabled) { background: #f7f6f3; border-color: #ccc9c2; }
+        .cbx-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .cbx-action-btn--success { color: #1d7a5a; border-color: #9fe1cb; background: #f0faf6; }
+        .cbx-action-btn--success:hover { background: #e1f5ee; }
+        .cbx-action-btn--danger { color: #c0392b; border-color: #f5c4b3; }
+        .cbx-action-btn--danger:hover:not(:disabled) { background: #fff5f3; border-color: #f0997b; }
+
+        .cbx-ai-toggle {
+          display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px;
+          border-radius: 20px; border: 1px solid #e8e6e0; background: #ffffff; font-size: 12px;
+          font-weight: 600; color: #3d3d3d; cursor: pointer; font-family: 'DM Sans', sans-serif;
+          transition: all 0.2s; letter-spacing: 0.02em;
+        }
+        .cbx-ai-toggle:hover { background: #f0ede8; }
+        .cbx-ai-toggle--active { background: #1a1a1a; border-color: #1a1a1a; color: #ffffff; }
+        .cbx-ai-toggle--active:hover { background: #2d2d2d; }
+
+        .cbx-main { display: flex; flex: 1; overflow: hidden; }
+
+        .cbx-editor-wrap { flex: 1; overflow-y: auto; padding: 48px 24px; display: flex; justify-content: center; }
+        .cbx-editor-wrap::-webkit-scrollbar { width: 6px; }
+        .cbx-editor-wrap::-webkit-scrollbar-thumb { background: #dbd8d1; border-radius: 3px; }
+
+        .cbx-page {
+          width: 100%; max-width: 720px; background: #ffffff; border: 1px solid #e8e6e0;
+          border-radius: 12px; padding: 56px 72px; min-height: 85vh; display: flex;
+          flex-direction: column; gap: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .cbx-page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; padding-bottom: 16px; border-bottom: 1px solid #f0ede8; }
+        .cbx-page-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+        .cbx-page-title {
+          border: none; outline: none; background: transparent; font-family: 'DM Serif Display', serif;
+          font-size: 32px; color: #1a1a1a; width: 100%; line-height: 1.2; padding: 0;
+        }
+        .cbx-page-title::placeholder { color: #d4d0c8; }
+
+        .cbx-editor {
+          flex: 1; border: none; outline: none; resize: none; font-family: 'DM Sans', sans-serif;
+          font-size: 15.5px; line-height: 1.85; color: #2d2d2d; background: transparent;
+          padding: 20px 0 0 0; min-height: 60vh; width: 100%;
+        }
+        .cbx-editor::placeholder { color: #ccc9c2; }
+
+        .cbx-chat { width: 360px; flex-shrink: 0; background: #ffffff; border-left: 1px solid #e8e6e0; display: flex; flex-direction: column; overflow: hidden; }
+        .cbx-spin { animation: cbxSpin 1s linear infinite; display: inline-block; }
+        @keyframes cbxSpin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { api } from '../../services/api';
-import { 
-    Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles, X
+import {
+  Plus, ArrowRight, FolderOpen, FileText, MessageSquare, Users, Cpu, Settings, Video, List, Sparkles, X
 } from 'lucide-react';
 import { fetchWorkspaces } from '../../store/slices/workspaceSlice';
 import VideoMeet from '../Workspace/VideoMeet';
@@ -31,20 +31,32 @@ const WS_COLORS = [t.indigo, '#0891B2', t.purple, t.success, t.danger, t.warning
 const wsColor   = (name) => WS_COLORS[name.charCodeAt(0) % WS_COLORS.length];
 
 /* ─── Meet Options Modal ─────────────────────────────────────────────────── */
-function MeetOptionsModal({ workspace, onClose, onStartMeet, joiningId }) {
+function MeetOptionsModal({ workspace, onClose, onStartMeet, onJoinMeet, joiningId, activeMeetings }) {
   const navigate = useNavigate();
   const color = wsColor(workspace.name);
+  const isMeetActive = activeMeetings?.includes(workspace.id);
 
   const options = [
-    {
-      icon: <Video size={20} />,
-      label: 'Start Video Meet',
-      desc: 'Launch a live HD video call with your team',
-      color: t.danger,
-      bg: '#FFF5F5',
-      action: () => { onStartMeet(workspace.id); onClose(); },
-      loading: joiningId === workspace.id,
-    },
+    // ── If a meeting is live, show "Join Meet" first; otherwise "Create Meet" ──
+    isMeetActive
+      ? {
+          icon: <Video size={20} />,
+          label: 'Join Live Meet',
+          desc: 'A meeting is in progress — join now',
+          color: t.success,
+          bg: '#F0FDF4',
+          action: () => { onJoinMeet(workspace.id); onClose(); },
+          loading: joiningId === workspace.id,
+        }
+      : {
+          icon: <Video size={20} />,
+          label: 'Start Video Meet',
+          desc: 'Launch a live HD video call with your team',
+          color: t.danger,
+          bg: '#FFF5F5',
+          action: () => { onStartMeet(workspace.id); onClose(); },
+          loading: joiningId === workspace.id,
+        },
     {
       icon: <List size={20} />,
       label: 'Meeting History',
@@ -88,7 +100,11 @@ function MeetOptionsModal({ workspace, onClose, onStartMeet, joiningId }) {
             }}>{workspace.name.substring(0, 2).toUpperCase()}</div>
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: t.text }}>{workspace.name}</p>
-              <p style={{ margin: 0, fontSize: 12, color: t.muted }}>Choose a meeting option</p>
+              <p style={{ margin: 0, fontSize: 12, color: t.muted }}>
+                {activeMeetings?.includes(workspace.id)
+                  ? '🟢 Meeting in progress'
+                  : 'Choose a meeting option'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -136,9 +152,10 @@ function MeetOptionsModal({ workspace, onClose, onStartMeet, joiningId }) {
 }
 
 /* ─── Workspace Card ─────────────────────────────────────────────────────── */
-function WorkspaceCard({ ws, onMeetClick, navigate }) {
+function WorkspaceCard({ ws, onMeetClick, navigate, activeMeetings }) {
   const color = wsColor(ws.name);
   const [hov, setHov] = useState(false);
+  const isMeetActive = activeMeetings?.includes(ws.id);
 
   const actions = [
     { icon: <FileText size={13} />, label: 'Docs',  color: t.indigo,  path: `/workspace/${ws.id}/documents` },
@@ -160,12 +177,24 @@ function WorkspaceCard({ ws, onMeetClick, navigate }) {
     >
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 13 }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: 10,
-          background: color + '18', color,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 13,
-        }}>{ws.name.substring(0, 2).toUpperCase()}</div>
+        <div style={{ position: 'relative' }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 10,
+            background: color + '18', color,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, fontSize: 13,
+          }}>{ws.name.substring(0, 2).toUpperCase()}</div>
+          {/* Live indicator on avatar */}
+          {isMeetActive && (
+            <div style={{
+              position: 'absolute', top: -3, right: -3,
+              width: 12, height: 12, borderRadius: '50%',
+              background: t.success,
+              border: `2px solid ${t.surface}`,
+              boxShadow: `0 0 6px ${t.success}88`,
+            }} />
+          )}
+        </div>
 
         <button onClick={() => navigate(`/workspace/${ws.id}`)} style={{
           display: 'flex', alignItems: 'center', gap: 5,
@@ -192,6 +221,23 @@ function WorkspaceCard({ ws, onMeetClick, navigate }) {
         <span style={{ fontSize: 12, color: t.muted, fontWeight: 500 }}>
           {ws.member_count || ws.members?.length || 0} members
         </span>
+
+        {/* Live meeting badge */}
+        {isMeetActive && (
+          <span style={{
+            marginLeft: 'auto',
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontSize: 10.5, fontWeight: 700,
+            color: t.success,
+            background: '#F0FDF4',
+            border: `1px solid ${t.success}44`,
+            padding: '2px 8px', borderRadius: 20,
+            textTransform: 'uppercase', letterSpacing: '0.05em',
+          }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.success, display: 'inline-block' }} />
+            Live
+          </span>
+        )}
       </div>
 
       {/* Action row */}
@@ -213,18 +259,21 @@ function WorkspaceCard({ ws, onMeetClick, navigate }) {
           ))}
         </div>
 
-        {/* Meet — opens modal */}
+        {/* Meet button — changes label based on live status */}
         <button onClick={() => onMeetClick(ws)} style={{
           display: 'flex', alignItems: 'center', gap: 5,
           padding: '5px 11px', borderRadius: 7,
-          border: 'none', background: '#FFF1F1',
-          fontSize: 12, fontWeight: 600, color: t.danger,
+          border: 'none',
+          background: isMeetActive ? '#F0FDF4' : '#FFF1F1',
+          fontSize: 12, fontWeight: 600,
+          color: isMeetActive ? t.success : t.danger,
           cursor: 'pointer', transition: 'background .15s',
         }}
-          onMouseEnter={e => e.currentTarget.style.background = '#FFE0E0'}
-          onMouseLeave={e => e.currentTarget.style.background = '#FFF1F1'}
+          onMouseEnter={e => e.currentTarget.style.background = isMeetActive ? '#DCFCE7' : '#FFE0E0'}
+          onMouseLeave={e => e.currentTarget.style.background = isMeetActive ? '#F0FDF4' : '#FFF1F1'}
         >
-          <Video size={13} /> Meet
+          <Video size={13} />
+          {isMeetActive ? 'Join Meet' : 'Meet'}
         </button>
       </div>
     </div>
@@ -237,9 +286,11 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { list: workspaces, loading } = useSelector((s) => s.workspaces);
 
-  const [meetData,    setMeetData]    = useState(null);
-  const [joiningId,   setJoiningId]   = useState(null);
-  const [meetModalWs, setMeetModalWs] = useState(null);
+  const [meetData,      setMeetData]      = useState(null);
+  const [joiningId,     setJoiningId]     = useState(null);
+  const [meetModalWs,   setMeetModalWs]   = useState(null);
+  // Track which workspace IDs have an active meeting
+  const [activeMeetings, setActiveMeetings] = useState([]);
 
   useEffect(() => {
     if (workspaces.length === 0) dispatch(fetchWorkspaces());
@@ -249,21 +300,50 @@ export default function Dashboard() {
     document.body.style.overflow = (meetData || meetModalWs) ? 'hidden' : 'unset';
   }, [meetData, meetModalWs]);
 
+  // Poll active meetings so the card reflects live status
+  useEffect(() => {
+    const checkActiveMeetings = async () => {
+      if (workspaces.length === 0) return;
+      try {
+        const res = await api.get('workspaces/active-meetings/');
+        setActiveMeetings(res.data?.active_workspace_ids || []);
+      } catch (_) {
+        // endpoint may not exist — silently ignore
+      }
+    };
+    checkActiveMeetings();
+    const interval = setInterval(checkActiveMeetings, 15000);
+    return () => clearInterval(interval);
+  }, [workspaces]);
+
   const handleStartMeet = async (workspaceId) => {
-  setJoiningId(workspaceId);
-  try {
-    // CHANGE: Use 'api' instead of 'axios'
-    // ALSO: Check if your backend expects /api/ or not. 
-    // If your api service has baseURL: .../api/, remove '/api' from the string below.
-    const response = await api.get(`workspaces/${workspaceId}/meet-token/`);
-    setMeetData({ ...response.data, workspaceId });
-  } catch (err) {
-    console.error("Meeting failed:", err);
-    alert("Failed to initialize meeting.");
-  } finally {
-    setJoiningId(null);
-  }
-};
+    setJoiningId(workspaceId);
+    try {
+      const response = await api.get(`workspaces/${workspaceId}/meet-token/`);
+      setMeetData({ ...response.data, workspaceId });
+      // Mark as active locally immediately
+      setActiveMeetings(prev => [...new Set([...prev, workspaceId])]);
+    } catch (err) {
+      console.error("Meeting failed:", err);
+      alert("Failed to initialize meeting.");
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
+  // Join an existing meeting — same token endpoint, backend handles join vs create
+  const handleJoinMeet = async (workspaceId) => {
+    setJoiningId(workspaceId);
+    try {
+      const response = await api.get(`workspaces/${workspaceId}/meet-token/`);
+      setMeetData({ ...response.data, workspaceId });
+    } catch (err) {
+      console.error("Join meeting failed:", err);
+      alert("Failed to join meeting.");
+    } finally {
+      setJoiningId(null);
+    }
+  };
 
   if (loading && workspaces.length === 0) return (
     <div style={{
@@ -296,6 +376,18 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: t.muted, fontSize: 13 }}>
             <FolderOpen size={14} />
             <span>{workspaces.length} active workspace{workspaces.length !== 1 ? 's' : ''}</span>
+            {activeMeetings.length > 0 && (
+              <span style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                marginLeft: 8, fontSize: 11.5, fontWeight: 600,
+                color: t.success, background: '#F0FDF4',
+                border: `1px solid ${t.success}44`,
+                padding: '2px 9px', borderRadius: 20,
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.success, display: 'inline-block' }} />
+                {activeMeetings.length} live meeting{activeMeetings.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
         </div>
         <Link to="/workspace/create" style={{
@@ -315,7 +407,6 @@ export default function Dashboard() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         overflow: 'hidden', position: 'relative',
       }}>
-        {/* subtle orb */}
         <div style={{ position: 'absolute', width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,110,247,0.2) 0%, transparent 70%)', top: -60, left: -40, pointerEvents: 'none' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <p style={{ margin: '0 0 3px', fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
@@ -375,6 +466,7 @@ export default function Dashboard() {
             ws={ws}
             navigate={navigate}
             joiningId={joiningId}
+            activeMeetings={activeMeetings}
             onMeetClick={(ws) => setMeetModalWs(ws)}
           />
         ))}
@@ -421,7 +513,9 @@ export default function Dashboard() {
           workspace={meetModalWs}
           onClose={() => setMeetModalWs(null)}
           onStartMeet={handleStartMeet}
+          onJoinMeet={handleJoinMeet}
           joiningId={joiningId}
+          activeMeetings={activeMeetings}
         />
       )}
 

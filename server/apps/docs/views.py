@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
+from django.db import transaction
 
 # NECESSARY FOR REAL-TIME SYNC
 from channels.layers import get_channel_layer
@@ -182,8 +183,10 @@ class DocumentPDFExportView(APIView):
         if document.is_exporting:
             return Response({"detail": "Export already in progress."}, status=status.HTTP_409_CONFLICT)
 
-        document.is_exporting = True
-        document.save()
-        
-        generate_document_pdf.delay(document.id)
+        with transaction.atomic():
+
+            Document.objects.filter(pk=pk).update(is_exporting=True)
+            
+            transaction.on_commit(lambda: generate_document_pdf.delay(document.id))
+
         return Response({"detail": "PDF generation started."}, status=status.HTTP_202_ACCEPTED)

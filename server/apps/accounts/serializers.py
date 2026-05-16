@@ -94,17 +94,21 @@ class ForgotPassSerializer(serializers.Serializer):
 class ResetPassSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
+
 class UserProfileSerializer(serializers.ModelSerializer):
-
-    mfa_enabled = serializers.SerializerMethodField()
-
     class Meta:
         model = User
-        fields = ['id', 'email', 'username','mfa_enabled', 'is_verified']
+        fields = ['id', 'email', 'username']
+        read_only_fields = ['id']
 
-    def get_mfa_enabled(self, obj):
-        # Check if a UserMFA record exists and if is_enabled is True
-        try:
-            return obj.usermfa.is_enabled
-        except UserMFA.DoesNotExist:
-            return False        
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("A user with that email already exists.")
+        return value
+
+    def validate_username(self, value):
+        user = self.context['request'].user
+        if User.objects.filter(username=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("A user with that username already exists.")
+        return value     

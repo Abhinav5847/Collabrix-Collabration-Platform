@@ -245,6 +245,7 @@ class LogoutView(APIView):
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [CookieJWTAuthentication]
+    serializer_class = UserProfileSerializer
 
     def get(self, request):
         user = request.user
@@ -259,11 +260,89 @@ class UserProfileView(APIView):
             "id": user.id, 
             "email": user.email, 
             "username": user.username,
-            "first_name": user.first_name, 
-            "last_name": user.last_name,
             "mfa_enabled": mfa_enabled,
             "is_staff": user.is_staff,
         }, status=200)
+
+    def patch(self, request):
+        """
+        Handles profile editing for the authenticated user.
+        If the email address changes, deactivates/unverifies the user, 
+        sends a verification OTP, and clears authentication cookies.
+        """
+        user = request.user
+        old_email = user.email
+        
+        # Pass data into serializer to perform your custom validate_email and validate_username tests
+        serializer = self.serializer_class(
+            instance=user, 
+            data=request.data, 
+            context={'request': request}, 
+            partial=True
+        )
+        
+        if not serializer.is_valid():
+            # Returns standard DRF errors cleanly back to the React UI context
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Look ahead at what validated email data is going to be saved
+        new_email = serializer.validated_data.get('email', old_email)
+        email_changed = (new_email != old_email)
+        
+        # Save the updated fields (username, and the new email if changed)
+        serializer.save()
+        
+        if email_changed:
+            # 1. Update state flags to lock down the account
+            user.is_verified = False
+            # If your authentication system blocks users where is_active=False completely:
+            # user.is_active = False 
+            user.save()
+            
+            # 2. Clear out older OTP instances and generate a fresh one
+            UserOTP.objects.filter(user=user).delete()
+            otp = UserOTP.objects.create(user=user)
+            
+            # 3. Dispatch verification email using your existing utility setup
+            try:
+                send_otp_email(user.email, otp.code)
+            except Exception as e:
+                # Log error if necessary, but keep the flow moving so frontend can handle re-routing
+                pass
+            
+            # 4. Format a custom response structure signaling a redirect to the verification screen
+            response = Response({
+                "message": "Email changed. Please verify your new email address with the OTP sent.",
+                "needs_verification": True,
+                "email": user.email,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "mfa_enabled": False,
+                    "is_staff": user.is_staff,
+                }
+            }, status=status.HTTP_200_OK)
+            
+            # 5. Clear the JWT HTTP-only auth cookies to enforce re-authentication restrictions
+            response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
+            response.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
+            response.delete_cookie('user_id')
+            return response
+
+        # Standard path if only username changed
+        mfa_enabled = UserMFA.objects.filter(user=user, is_enabled=True).exists()
+        return Response({
+            "message": "Profile updated successfully",
+            "needs_verification": False,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "mfa_enabled": mfa_enabled,
+                "is_staff": user.is_staff,
+            }
+        }, status=status.HTTP_200_OK)
 
 class EnableMfaView(APIView):
     permission_classes = [IsAuthenticated]
